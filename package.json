@@ -1,0 +1,17 @@
+{
+  "name": "telegram-bot",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "node-telegram-bot-api": "",
+    "better-sqlite3": "",
+    "user-agents",
+    "header-generator",
+    "fake-useragent",
+    "colors",
+    "axios"
+  }
+}
