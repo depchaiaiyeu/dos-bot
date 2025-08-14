@@ -8,10 +8,10 @@
   "dependencies": {
     "node-telegram-bot-api": "",
     "better-sqlite3": "",
-    "user-agents",
-    "header-generator",
-    "fake-useragent",
-    "colors",
-    "axios"
+    "user-agents": "",
+    "header-generator": "",
+    "fake-useragent": "",
+    "colors": "",
+    "axios": ""
   }
 }
