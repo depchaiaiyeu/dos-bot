@@ -13,6 +13,7 @@
     "fake-useragent": "",
     "colors": "",
     "axios": "",
-    "hpack": ""
+    "hpack": "",
+    "socks": ""
   }
 }
