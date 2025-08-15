@@ -12,6 +12,7 @@
     "header-generator": "",
     "fake-useragent": "",
     "colors": "",
-    "axios": ""
+    "axios": "",
+    "hpack": ""
   }
 }
