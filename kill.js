@@ -78,6 +78,10 @@ const lang_header = [
     'de-DE',
     'es-ES'
   ];
+const Methods = [
+   "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"
+];
+const randomMethod = Methods[Math.floor(Math.random() * Methods.length)];
 const encoding_header = [
     'gzip, deflate, br',
     'deflate',
@@ -174,7 +178,7 @@ function generateUserAgent() {
 }
 
 const Socker = new NetSocket();
-headers[":method"] = "GET";
+headers[":method"] = randomMethod;
 headers[":authority"] = parsedTarget.host;
 headers[":path"] = parsedTarget.path + "?" + randstr(10) + "=" + randstr(5);
 headers[":scheme"] = "https";
