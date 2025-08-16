@@ -13,8 +13,6 @@
     "fake-useragent": "",
     "colors": "",
     "axios": "",
-    "hpack": "",
-    "socks": "",
-    "node-fetch": "2.6.7"
+    "hpack": ""
   }
 }
