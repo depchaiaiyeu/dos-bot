@@ -6,15 +6,15 @@
     "start": "node index.js"
   },
   "dependencies": {
-    "node-telegram-bot-api": "^0.66.0",
-    "better-sqlite3": "^9.6.0",
-    "user-agents": "^1.1.114",
-    "header-generator": "^2.1.46",
-    "fake-useragent": "^1.0.1",
-    "colors": "^1.4.0",
-    "axios": "^1.7.2",
-    "hpack": "^0.0.3",
-    "socks": "^2.7.1",
+    "node-telegram-bot-api": "",
+    "better-sqlite3": "",
+    "user-agents": "",
+    "header-generator": "",
+    "fake-useragent": "",
+    "colors": "",
+    "axios": "",
+    "hpack": "",
+    "socks": "",
     "node-fetch": "2.6.7"
   }
 }
