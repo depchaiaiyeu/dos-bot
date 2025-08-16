@@ -97,10 +97,6 @@ const rateHeaders = [
 { "cluster-ip": randstr(12)  },
 { "user-agent": randstr(12) },
 ];
-const methods = [
-   "GET", "HEAD", "POST", "PUT", "DELETE", "CONNECT", "OPTIONS", "TRACE", "PATCH"
-];
-const randomMethod = methods[Math.floor(Math.random() * Methods.length)];
 var siga = sig[Math.floor(Math.floor(Math.random() * sig.length))];
 var ver = version[Math.floor(Math.floor(Math.random() * version.length))];
 var accept = accept_header[Math.floor(Math.floor(Math.random() * accept_header.length))];
@@ -178,7 +174,7 @@ function generateUserAgent() {
 }
 
 const Socker = new NetSocket();
-headers[":method"] = randomMethod;
+headers[":method"] = "GET";
 headers[":authority"] = parsedTarget.host;
 headers[":path"] = parsedTarget.path + "?" + randstr(10) + "=" + randstr(5);
 headers[":scheme"] = "https";
