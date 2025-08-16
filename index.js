@@ -4,7 +4,7 @@ const token = '7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc';
 const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239, 1848131455];
 const groupId = -1002370415846;
-const methods = ['tls', 'flood'', 'kill'];
+const methods = ['tls', 'flood', 'kill'];
 const db = Database('bot.db');
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
