@@ -110,7 +110,7 @@ bot.onText(/\/attack$/, (msg) => {
   if (!isAllowed(chatId, userId)) return;
   bot.sendMessage(chatId, 'Cú pháp: /attack [url] [method] [time] [-r rate] [-t threads]\nVD: /attack https://abc.com tls 30 -r 64 -t 8', { parse_mode: "Markdown" });
 });
-bot.onText(/\/attack (.+?) (tls|flood|reflood|kill|bypass) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
+bot.onText(/\/attack (.+?) (tls|flood|reflood|kill|bypass|bestflood) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
