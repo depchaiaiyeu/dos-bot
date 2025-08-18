@@ -95,10 +95,8 @@ const methods = [
   "GET",
   "HEAD",
   "POST",
-  "PUT",
   "PATCH",
-  "DELETE",
-  "OPTIONS"
+  "DELETE"
 ];
 
 const cache_control = [
