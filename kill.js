@@ -92,7 +92,13 @@ const encoding_header = [
 ];
 
 const methods = [
-    "GET", "HEAD", "POST", "DELETE", "PATCH"
+  "GET",
+  "HEAD",
+  "POST",
+  "PUT",
+  "PATCH",
+  "DELETE",
+  "OPTIONS"
 ];
 
 const cache_control = [
