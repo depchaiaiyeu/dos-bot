@@ -13,6 +13,8 @@
     "fake-useragent": "",
     "colors": "",
     "axios": "",
-    "hpack": ""
+    "hpack": "",
+    "set-cookie-parser": "",
+    "random-useragent": ""
   }
 }
