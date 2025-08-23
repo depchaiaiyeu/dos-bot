@@ -109,7 +109,7 @@ bot.onText(/\/attack$/, (msg) => {
   const chatId = msg.chat.id;
   const userId = msg.from.id;
   if (!isAllowed(chatId, userId)) return;
-  bot.sendMessage(chatId, "Cú pháp: /attack [url] [method] [time] [-r rate] [-t threads]\nVD: /attack https://abc.com tls 30 -r 64 -t 8", { parse_mode: "Markdown" });
+  bot.sendMessage(chatId, "Cú pháp: /attack [url] [method] [time] [-r rate] [-t threads]\nVD: /attack https://abc.com method -r 64 -t 8\nLưu ý: Gói free max time là 60s, và không custom được rate(-r) và thread(-t), gõ /methods để xem method", { parse_mode: "Markdown" });
 });
 bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, (msg, match) => {
   const chatId = msg.chat.id;
