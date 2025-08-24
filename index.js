@@ -27,7 +27,7 @@ let blacklist = getAllBlacklist.all().map(r => r.keyword);
 let activeSlots = parseInt(getSetting.get("activeSlots").value);
 const maxSlots = 1;
 let lastAttackTime = 0;
-const cooldown = 30000;
+const cooldown = 15000;
 function syncSlotsFromDb() {
   removeExpiredSlots.run(Math.floor(Date.now() / 1000));
   activeSlots = getAllSlots.all().length;
@@ -136,8 +136,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     bot.sendMessage(chatId, "🚫 URL này nằm trong blacklist.", { parse_mode: "Markdown" });
     return;
   }
-  if (!admins.includes(userId) && time > 60) {
-    time = 60;
+  if (!admins.includes(userId) && time > 80) {
+    time = 80;
   }
   syncSlotsFromDb();
   if (activeSlots >= maxSlots) {
