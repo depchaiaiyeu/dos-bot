@@ -1,3 +1,4 @@
+# By VuXuanKien1997
 const TelegramBot = require("node-telegram-bot-api");
 const Database = require("better-sqlite3");
 const si = require("systeminformation");
