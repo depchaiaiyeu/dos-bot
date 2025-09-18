@@ -5,7 +5,7 @@ const { exec } = require("child_process");
 
 const token = "7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc";
 const bot = new TelegramBot(token, { polling: true });
-const admins = [6601930239, 1848131455];
+const admins = [6601930239];
 const subAdmins = [7245377580, 7566935490];
 const groupId = -1002370415846;
 const requiredGroup = "@deptraiaiyeu";
