@@ -9,97 +9,96 @@ const os = require("os");
 const HPACK = require('hpack');
 
 async function detectChallenge(page) {
-    try {
-        const title = await page.title();
-        const content = await page.content();
+  try {
+    const title = await page.title();
+    const content = await page.content();
 
-        if (title === "Attention Required! | Cloudflare") {
-            throw new Error("Proxy blocked");
-        }
-
-        if (content.includes("challenge-platform") === true || title.includes("Just a moment")) {
-            await new Promise(r => setTimeout(r, 6000));
-
-            try {
-                await page.waitForSelector('iframe[src*="cloudflare"]', { timeout: 5000 })
-                    .then(async iframe => {
-                        const frame = await iframe.contentFrame();
-                        await frame.waitForSelector('input[type="checkbox"]', { timeout: 5000 });
-                        await frame.click('input[type="checkbox"]');
-                    })
-                    .catch(() => {});
-            } catch (err) {}
-
-            const elements = await page.$$('[name="cf-turnstile-response"]');
-            if (elements.length > 0) {
-                for (const element of elements) {
-                    try {
-                        const parentElement = await element.evaluateHandle((el) => el.parentElement);
-                        const box = await parentElement.boundingBox();
-                        let x = box.x + 30;
-                        let y = box.y + box.height / 2;
-                        await page.mouse.click(x, y);
-                    } catch (err) {}
-                }
-            }
-
-            const coordinates = await page.evaluate(() => {
-                let coords = [];
-                document.querySelectorAll("div").forEach((item) => {
-                    try {
-                        let rect = item.getBoundingClientRect();
-                        let css = window.getComputedStyle(item);
-                        if (
-                            css.margin === "0px" &&
-                            css.padding === "0px" &&
-                            rect.width > 290 &&
-                            rect.width <= 310 &&
-                            !item.querySelector("*")
-                        ) {
-                            coords.push({
-                                x: rect.x,
-                                y: rect.y,
-                                w: rect.width,
-                                h: rect.height,
-                            });
-                        }
-                    } catch (e) {}
-                });
-                if (coords.length === 0) {
-                    document.querySelectorAll("div").forEach((item) => {
-                        try {
-                            let rect = item.getBoundingClientRect();
-                            if (rect.width > 290 && rect.width <= 310 && !item.querySelector("*")) {
-                                coords.push({
-                                    x: rect.x,
-                                    y: rect.y,
-                                    w: rect.width,
-                                    h: rect.height,
-                                });
-                            }
-                        } catch (e) {}
-                    });
-                }
-                return coords;
-            });
-
-            for (const item of coordinates) {
-                try {
-                    let x = item.x + 30;
-                    let y = item.y + item.h / 2;
-                    await page.mouse.click(x, y);
-                } catch (err) {}
-            }
-            await new Promise(r => setTimeout(r, 6000));
-            await new Promise(r => setTimeout(r, 5000));
-            return;
-        }
-        await new Promise(r => setTimeout(r, 3000));
-        return;
-    } catch (error) {
-        await new Promise(r => setTimeout(r, 3000));
-        return;
+    if (title === "Attention Required! | Cloudflare") {
+      throw new Error("Proxy blocked");
     }
+
+    if (content.includes("challenge-platform") === true || title.includes("Just a moment")) {
+      await page.waitForTimeout(3000);
+
+      try {
+        await page.waitForSelector('iframe[src*="cloudflare"]', { timeout: 2000 })
+          .then(async iframe => {
+            const frame = await iframe.contentFrame();
+            await frame.waitForSelector('input[type="checkbox"]', { timeout: 2000 });
+            await frame.click('input[type="checkbox"]');
+          })
+          .catch(() => {});
+      } catch (err) {}
+
+      const elements = await page.$$('[name="cf-turnstile-response"]');
+      if (elements.length > 0) {
+        for (const element of elements) {
+          try {
+            const parentElement = await element.evaluateHandle((el) => el.parentElement);
+            const box = await parentElement.boundingBox();
+            let x = box.x + 30;
+            let y = box.y + box.height / 2;
+            await page.mouse.click(x, y);
+          } catch (err) {}
+        }
+      }
+
+      const coordinates = await page.evaluate(() => {
+        let coords = [];
+        document.querySelectorAll("div").forEach((item) => {
+          try {
+            let rect = item.getBoundingClientRect();
+            let css = window.getComputedStyle(item);
+            if (
+              css.margin === "0px" &&
+              css.padding === "0px" &&
+              rect.width > 290 &&
+              rect.width <= 310 &&
+              !item.querySelector("*")
+            ) {
+              coords.push({
+                x: rect.x,
+                y: rect.y,
+                w: rect.width,
+                h: rect.height,
+              });
+            }
+          } catch (e) {}
+        });
+        if (coords.length === 0) {
+          document.querySelectorAll("div").forEach((item) => {
+            try {
+              let rect = item.getBoundingClientRect();
+              if (rect.width > 290 && rect.width <= 310 && !item.querySelector("*")) {
+                coords.push({
+                  x: rect.x,
+                  y: rect.y,
+                  w: rect.width,
+                  h: rect.height,
+                });
+              }
+            } catch (e) {}
+          });
+        }
+        return coords;
+      });
+
+      for (const item of coordinates) {
+        try {
+          let x = item.x + 30;
+          let y = item.y + item.h / 2;
+          await page.mouse.click(x, y);
+        } catch (err) {}
+      }
+      await page.waitForTimeout(3000);
+      return;
+    }
+    await page.waitForTimeout(1500);
+    return;
+  } catch (error) {
+    await page.waitForTimeout(1500);
+    return;
+  }
 }
 
 function getAdvancedChromeTlsOptions(parsedTarget) {
