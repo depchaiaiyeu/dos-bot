@@ -356,7 +356,7 @@ async function bypassCloudflareOnce(attemptNum = 1) {
             try {
                 await page.goto(args.target, { 
                     waitUntil: 'domcontentloaded',
-                    timeout: 60000 
+                    timeout: 10000 
                 });
             } catch (navError) {
                 console.log(`\x1b[33mAccess warning: ${navError.message}\x1b[0m`);
@@ -366,7 +366,7 @@ async function bypassCloudflareOnce(attemptNum = 1) {
             
             let challengeCompleted = false;
             let checkCount = 0;
-            const maxChecks = 120;
+            const maxChecks = 10;
             
             while (!challengeCompleted && checkCount < maxChecks) {
                 await new Promise(r => setTimeout(r, 500));
@@ -378,6 +378,13 @@ async function bypassCloudflareOnce(attemptNum = 1) {
                     if (cfClearance) {
                         console.log(`\x1b[32mFound cookie after ${(checkCount * 0.5).toFixed(1)}s!\x1b[0m`);
                         challengeCompleted = true;
+                        finalResult = {
+                            cookies: cookies,
+                            userAgent: await page.evaluate(() => navigator.userAgent),
+                            cfClearance: cfClearance.value,
+                            success: true,
+                            attemptNum: attemptNum
+                        };
                         break;
                     }
                     
@@ -401,37 +408,21 @@ async function bypassCloudflareOnce(attemptNum = 1) {
                 
                 checkCount++;
                 
-                if (checkCount % 10 === 0) {
+                if (checkCount % 5 === 0) {
                     console.log(`\x1b[33mStill checking... (${(checkCount * 0.5).toFixed(1)}s elapsed)\x1b[0m`);
                 }
-            }
-            
-            await new Promise(r => setTimeout(r, 1000));
-            
-            const cookies = await page.cookies();
-            console.log(`\x1b[36mFound ${cookies.length} cookies in ${(checkCount * 0.5).toFixed(1)}s\x1b[0m`);
-            
-            const cfClearance = cookies.find(c => c.name === "cf_clearance");
-            if (cfClearance) {
-                console.log(`\x1b[32mcf_clearance: ${cfClearance.value.substring(0, 30)}...\x1b[0m`);
-                finalResult = {
-                    cookies: cookies,
-                    userAgent: await page.evaluate(() => navigator.userAgent),
-                    cfClearance: cfClearance.value,
-                    success: true,
-                    attemptNum: attemptNum
-                };
-                await page.close();
-                await browser.close();
-                return finalResult;
             }
             
             await page.close();
             await browser.close();
             
+            if (finalResult) {
+                return finalResult;
+            }
+            
             if (retry < maxRetries - 1) {
-                console.log(`\x1b[33mNo cf_clearance on retry ${retry + 1}, waiting 2s...\x1b[0m`);
-                await new Promise(r => setTimeout(r, 2000));
+                console.log(`\x1b[33mNo cf_clearance on retry ${retry + 1}, waiting 1s...\x1b[0m`);
+                await new Promise(r => setTimeout(r, 1000));
             }
             
         } catch (error) {
@@ -443,8 +434,8 @@ async function bypassCloudflareOnce(attemptNum = 1) {
             } catch (cleanupError) {}
             
             if (retry < maxRetries - 1) {
-                console.log(`\x1b[33mRetrying in 2s...\x1b[0m`);
-                await new Promise(r => setTimeout(r, 2000));
+                console.log(`\x1b[33mRetrying in 1s...\x1b[0m`);
+                await new Promise(r => setTimeout(r, 1000));
             }
         }
     }
@@ -466,26 +457,33 @@ async function bypassCloudflareParallel(totalCount) {
     const results = [];
     let attemptCount = 0;
     
-    const concurrentBypassSessions = 10;
-    const remaining = totalCount - results.length;
-    const currentBatchSize = Math.min(concurrentBypassSessions, remaining);
-    
-    console.log(`\n\x1b[33mStarting parallel batch (${currentBatchSize} sessions)...\x1b[0m`);
-    
-    const batchPromises = [];
-    for (let i = 0; i < currentBatchSize; i++) {
-        attemptCount++;
-        batchPromises.push(bypassCloudflareOnce(attemptCount));
-    }
-    
-    const batchResults = await Promise.all(batchPromises);
-    
-    for (const result of batchResults) {
-        results.push(result);
-        if (result.cfClearance) {
-            console.log(`\x1b[32mSession ${result.attemptNum} successful! (Total: ${results.length}/${totalCount})\x1b[0m`);
-        } else {
-            console.log(`\x1b[31mSession ${result.attemptNum} no cf_clearance, proceeding without\x1b[0m`);
+    while (results.length < totalCount) {
+        const concurrentBypassSessions = 1;
+        const remaining = totalCount - results.length;
+        const currentBatchSize = Math.min(concurrentBypassSessions, remaining);
+        
+        console.log(`\n\x1b[33mStarting parallel batch (${currentBatchSize} sessions)...\x1b[0m`);
+        
+        const batchPromises = [];
+        for (let i = 0; i < currentBatchSize; i++) {
+            attemptCount++;
+            batchPromises.push(bypassCloudflareOnce(attemptCount));
+        }
+        
+        const batchResults = await Promise.all(batchPromises);
+        
+        for (const result of batchResults) {
+            results.push(result);
+            if (result.cfClearance) {
+                console.log(`\x1b[32mSession ${result.attemptNum} successful! (Total: ${results.length}/${totalCount})\x1b[0m`);
+            } else {
+                console.log(`\x1b[31mSession ${result.attemptNum} no cf_clearance, proceeding without\x1b[0m`);
+            }
+        }
+        
+        if (results.length < totalCount) {
+            console.log(`\x1b[33mWaiting 1s before next batch...\x1b[0m`);
+            await new Promise(r => setTimeout(r, 1000));
         }
     }
     
